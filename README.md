@@ -60,4 +60,4 @@ The entirety of this package is intended to be placed in NextGen's `extern/` dir
 <br>
 
 ## Issues:
-For questions, concerns, bugs, etc., please reach out by posting an issue on the [dMG repo](https://github.com/mhpi/generic_deltaModel/issues).
+For questions, concerns, bugs, etc., please reach out by posting an issue here or on the [δMG repo](https://github.com/mhpi/generic_deltaModel/issues).
