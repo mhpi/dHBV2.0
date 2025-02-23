@@ -1,0 +1,8 @@
+train_cfg_file: ../trained_models/conus_multiscale_dhbv_2_0_uh/config.yaml  # Path to dHBV config file
+initial_state: zero  # zero: set initial states of the model to zero
+verbose: 1  # 0: no output, 1: print output
+time_step: 1 day
+start_time: 1995/10/01
+end_time: 2000/09/30
+
+# Unused: basin_name, basin_id, lat, lon, time_step_size, time_units
