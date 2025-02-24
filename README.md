@@ -38,6 +38,8 @@ The entirety of this package is intended to be placed in NextGen's `extern/` dir
 - BMI configuration files;
 - NextGen realization files;
 
+*Note: Currently the structure of this repository is modeled after NOAA-OWP's ngen-compatible [LSTM](https://github.com/NOAA-OWP/lstm) developed by Scott Peckham, Jonathan Frame et al.*
+
 <br>
 
 ## Operational Deployment:

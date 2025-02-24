@@ -1,20 +1,25 @@
-name: dmg
+name: bmi_dm
 channels:
-  - defaults
   - pytorch
-  - nvidia
+  - defaults
+  - anaconda
+  - conda-forge
 dependencies:
+  - bmipy
+  - cpuonly
   - python=3.11
-  - pytorch::pytorch-cuda=12.1
-  - pytorch::pytorch=2.5.1
-  - pytorch::pytorch-mutex=1.0
-  - pytorch::torchaudio=2.5.1
-  - pytorch::torchvision=0.20.1
+  - pytorch  # cpu only
+  # - pytorch::pytorch-cuda=12.1
+  # - pytorch::pytorch=2.5.1
+  # - pytorch::pytorch-mutex=1.0
+  # - pytorch::torchaudio=2.5.1
+  # - pytorch::torchvision=0.20.1
   - numpy=1.26.4
   - numpy-base=1.26.4
   - pip=24.2
   - pandas
   - geopandas
+  - matplotlib
   - pydantic
   - xarray
   - scipy
@@ -26,5 +31,3 @@ dependencies:
   - conda-forge::zarr
   - conda-forge::sympy=1.13.1
   - pytest
-  - pip:
-      - icechunk
