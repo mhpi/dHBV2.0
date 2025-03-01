@@ -50,7 +50,7 @@ The entirety of this package is intended to be placed in NextGen's `extern/` dir
    git clone https://github.com/mhpi/dHBV_2_0.git
    ```
 5. Move `dHBV_2_0` to NextGen's `extern/` directory.
-6. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes [here](NEEDS_LINK). Add this sample data to the `forcings/` directory in NextGen;
+6. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes [here](https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/aorc_hydrofabric/ngen_demo.zip). Add this sample data to the `forcings/` directory in NextGen;
 7. Place the realization files in `config/` and begin Nextgen model forwarding with the `run.sh` script.
 
 <br>
