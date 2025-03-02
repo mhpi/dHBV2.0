@@ -22,11 +22,11 @@ from ruamel.yaml import YAML
 log = logging.getLogger(__name__)
 
 
-class dPLModelBMI(Bmi):
+class BmiDm(Bmi):
     def __init__(self, config_filepath: Optional[str] = None, verbose=False):
         """
         Create an instance of a differentiable, physics-informed ML model BMI
-        ready for initialization.
+        for dHBV 2.0UH (Song et al., 2024).
 
         Parameters
         ----------
@@ -35,7 +35,7 @@ class dPLModelBMI(Bmi):
         verbose : bool, optional
             Enables debug print statements if True.
         """
-        super(dPLModelBMI, self).__init__()
+        super().__init__()
         self._model = None
         self._initialized = False
         self.verbose = verbose

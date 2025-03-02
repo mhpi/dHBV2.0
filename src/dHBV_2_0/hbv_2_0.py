@@ -30,6 +30,8 @@ class HBVUnitBasin(torch.nn.Module):
         Configuration dictionary.
     device : torch.device, optional
         Device to run the model on.
+
+    TODO: hydroDL2 needs to point to this file instead of the original.
     """
     def __init__(
             self,

@@ -10,7 +10,7 @@ defaults:
 ## General -------------------------------#
 mode: predict
 random_seed: 111111
-device: cuda
+device: cpu
 gpu_id: 0
 
 data_loader: MsHydroLoader

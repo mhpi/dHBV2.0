@@ -1,13 +1,15 @@
+## TODO: needs to be updated to latest dHBV 2.0 dMG implementation.
+
 import numpy as np
 from pathlib import Path
-from lstm import bmi_lstm  # Load module bmi_lstm (bmi_lstm.py) from lstm package.
+import bmi_dm   # Load module bmi_dm (bmi_dm.py) from dhbv_2_0 package.
 import os, os.path
-lstm_dir = os.path.expanduser('../lstm/')
+lstm_dir = os.path.expanduser('../dhbv_2_0/')
 os.chdir( lstm_dir )
 import pandas as pd
 
-basin_id = "05291000" # chose from basins available in this data sample: https://github.com/NWC-CUAHSI-Summer-Institute/CAMELS_data_sample/blob/main/sample_basins.txt
-# 01013500, 01333000, 02046000, 04015330, 03010655, 03439000, 05291000, 07291000, 05057200, 06221400, 07057500, 08023080, 08267500, 09035900, 09386900, 10234500, 12010000, 10259000
+basin_id = "cat-88306"
+
 
 # Load the USGS data 
 # REPLACE THIS PATH WITH YOUR LOCAL FILE PATH:
