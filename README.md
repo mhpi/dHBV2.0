@@ -40,7 +40,7 @@ The entirety of this package is intended to be placed in NextGen's `extern/` dir
 
 <br>
 
-## Operational Deployment:
+## Operational Deployment
 1. Install [NextGen in a Box](https://github.com/CIROH-UA/NGIAB-CloudInfra) (NGIAB) or the NextGen [prototype](https://github.com/NOAA-OWP/ngen) from NOAA-OWP;
 3. If using NGIAB, compile with docker image.
 4. Clone the `dHBV_2_0` package,
