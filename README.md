@@ -24,21 +24,19 @@ Learned parameters are spatially distinct, but can also be time-dependent if des
 
 ## Model Development and Training:
 
-δHBV 2.0UH is built on the generic differentiable modeling framework [δMG](https://github.com/mhpi/generic_deltaModel), a successor package to [HydroDL](https://github.com/mhpi/hydroDL) serving as a model testbed intended to accelerate deployment in operational environments. Therefore, while this package includes HBV, utility code and neural networks are imported from δMG. Note that while training codes for this model will be released in δMG at a later time, we offer an [example script](https://github.com/mhpi/generic_deltaModel/blob/master/example/hydrology/example_dhbv_2_0.ipynb) demonstrating forward inference on δMG's development backend.
+δHBV 2.0UH is built on the generic differentiable modeling framework [δMG](https://github.com/mhpi/generic_deltaModel), a successor package to [HydroDL](https://github.com/mhpi/hydroDL) serving as a model testbed intended to accelerate deployment in operational environments. Therefore, while this package includes HBV, utility code and neural networks are imported from δMG. Note that training codes for this model will be released in δMG at a later time, but we offer an [example script](https://github.com/mhpi/generic_deltaModel/blob/master/example/hydrology/example_dhbv_2_0.ipynb) demonstrating forward inference on δMG's development backend.
 
-We also have model training/validation/inference [examples](https://github.com/mhpi/generic_deltaModel/tree/master/example/hydrology) for predecessor models δHBV 1.0 and δHBV 1.1p, which give more detail on differentiable model construction for parameter learning in practice.
+We also provide model training/validation/inference [examples](https://github.com/mhpi/generic_deltaModel/tree/master/example/hydrology) for predecessor models δHBV 1.0 and δHBV 1.1p, which give more detail on differentiable model construction for parameter learning in practice.
 
 <br>
 
 ## Package Organization:
-This package is intended to be placed in NextGen's `extern/` directory, and contains the following components:
+The entirety of this package is intended to be placed in NextGen's `extern/` directory, and contains the following components:
 - The physical model HBV 2.0 + UH;
 - Model and data configuration files;
 - δHBV 2.0UH BMI to interface with NextGen and forward within the framework. (Note, this uses δMG's differentiable modeling pipeline as a backbone to build and forward the complete differentiable model: LSTM & MLP + HBV 2.0);
 - BMI configuration files;
 - NextGen realization files;
-
-*Note: Currently the structure of this repository is modeled after NOAA-OWP's ngen-compatible [LSTM](https://github.com/NOAA-OWP/lstm) developed by Scott Peckham, Jonathan Frame et al.*
 
 <br>
 
@@ -50,7 +48,7 @@ This package is intended to be placed in NextGen's `extern/` directory, and cont
    git clone https://github.com/mhpi/dHBV_2_0.git
    ```
 5. Move `dHBV_2_0` to NextGen's `extern/` directory.
-6. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes [here](https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/aorc_hydrofabric/ngen_demo.zip). Add this sample data to the `forcings/` directory in NextGen;
+6. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes [here](NEEDS_LINK). Add this sample data to the `forcings/` directory in NextGen;
 7. Place the realization files in `config/` and begin Nextgen model forwarding with the `run.sh` script.
 
 <br>
