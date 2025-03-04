@@ -12,9 +12,9 @@ import numpy as np
 import torch
 import yaml
 from bmipy import Bmi
-from dMG.conf import config
-from dMG.core.data import take_sample_test
-from dMG.models.model_handler import ModelHandler
+from conf import config
+from core.data import take_sample_test
+from models.model_handler import ModelHandler
 from omegaconf import DictConfig, OmegaConf
 from pydantic import ValidationError
 from ruamel.yaml import YAML
@@ -45,9 +45,9 @@ class BmiDm(Bmi):
         self._pm_values = {}
         self._start_time = 0.0
         self._end_time = np.finfo(float).max
-        # self._time_units = 'day'
-        # self._time_step_size = 1.0
-        # self._var_array_lengths = 1
+        self._time_units = 'day'  # NOTE: NextGen currently only supports seconds.
+        self._time_step_size = 1.0
+        self._var_array_lengths = 1
 
         # Timing BMI computations
         t_start = time.time()
@@ -56,8 +56,8 @@ class BmiDm(Bmi):
         # Basic model attributes
         _att_map = {
         'model_name':         "Differentiable, Physics-informed ML BMI",
-        'version':            '2.0',
-        'author_name':        'Leo Lonzarich',
+        'version':            '1.5',
+        'author_name':        'MHPI, Leo Lonzarich',
         }
         
         # Input forcing/attribute CSDMS Standard Names
@@ -65,6 +65,9 @@ class BmiDm(Bmi):
             ############## Forcings ##############
             'atmosphere_water__liquid_equivalent_precipitation_rate',
             'land_surface_air__temperature',
+            'land_surface_air__max_of_temperature',  # custom name
+            'land_surface_air__min_of_temperature',  # custom name
+            'day__length',  # custom name
             'land_surface_water__potential_evaporation_volume_flux',  # check name,
             ############## Attributes ##############
             # ------------- CAMELS ------------- #
@@ -102,23 +105,23 @@ class BmiDm(Bmi):
             'geol_2nd_class__fraction',  # custom name
             'basin__carbonate_rocks_area_fraction',
             'soil_active-layer__porosity',  # check name
-            'bedrock__permeability',
-            'land_surface_water__permafrost_fraction',  # custom name
-            'land_surface_water__Hargreaves_potential_evaporation_volume_flux',
-            'free_land_surface_water',  # check name
-            'soil_clay__attr',  # custom name; need to confirm
-            'soil_gravel__attr',  # custom name; need to confirm
-            'soil_sand__attr',  # custo=m name; need to confirm
-            'soil_silt__attr',  # custom name; need to confirm
-            'land_vegetation__normalized_diff_vegitation_index',  # custom name
-            'soil_clay__grid',  # custom name
-            'soil_sand__grid',  # custom name
-            'soil_silt__grid',  # custom name
-            'land_surface_water__glacier_fraction',  # custom name
-            'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate',
-            'atmosphere_water__daily_mean_of_temperature',  # custom name
-            'land_surface_water__potential_evaporation_volume_flux_seasonality',  # custom name
-            'land_surface_water__snow_fraction',
+            'bedrock__permeability'
+            # -------------- CONUS -------------- #
+            # 'land_surface_water__Hargreaves_potential_evaporation_volume_flux',
+            # 'free_land_surface_water',  # check name
+            # 'soil_clay__attr',  # custom name; need to confirm
+            # 'soil_gravel__attr',  # custom name; need to confirm
+            # 'soil_sand__attr',  # custo=m name; need to confirm
+            # 'soil_silt__attr',  # custom name; need to confirm
+            # 'land_vegetation__normalized_diff_vegitation_index',  # custom name
+            # 'soil_clay__grid',  # custom name
+            # 'soil_sand__grid',  # custom name
+            # 'soil_silt__grid',  # custom name
+            # 'land_surface_water__glacier_fraction',  # custom name
+            # 'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate',
+            # 'atmosphere_water__daily_mean_of_temperature',  # custom name
+            # 'land_surface_water__potential_evaporation_volume_flux_seasonality',  # custom name
+            # 'land_surface_water__snow_fraction',
         ]
 
         # Output variable names (CSDMS standard names)
@@ -143,39 +146,86 @@ class BmiDm(Bmi):
         # Map CSDMS Standard Names to the model's internal variable names (For CAMELS, CONUS).
         self._var_name_units_map = {
             ############## Forcings ##############
-            'atmosphere_water__liquid_equivalent_precipitation_rate':['P', 'mm d-1'],
-            'land_surface_air__temperature':['Temp','degC'],
-            'land_surface_water__potential_evaporation_volume_flux':['PET', 'mm d-1'],  # check name
+            # ------------- CAMELS ------------- #
+            'atmosphere_water__liquid_equivalent_precipitation_rate':['prcp(mm/day)', 'mm d-1'],
+            'land_surface_air__temperature':['tmean(C)','degC'],
+            'land_surface_air__max_of_temperature':['tmax(C)', 'degC'],  # custom name
+            'land_surface_air__min_of_temperature':['tmin(C)', 'degC'],  # custom name
+            'day__length':['dayl(s)', 's'],  # custom name
+            'land_surface_water__potential_evaporation_volume_flux':['PET_hargreaves(mm/day)', 'mm d-1'],  # check name
+            # -------------- CONUS -------------- #
+            # 'atmosphere_water__liquid_equivalent_precipitation_rate':['P', 'mm d-1'],
+            # 'land_surface_air__temperature':['Temp','degC'],
+            # 'land_surface_water__potential_evaporation_volume_flux':['PET', 'mm d-1'],  # check name
             ############## Attributes ##############
-            'basin__area':['uparea','km2'],
-            'land_surface_water__Hargreaves_potential_evaporation_volume_flux':['ETPOT_Hargr', 'mm d-1'],  # check name
-            'free_land_surface_water':['FW', 'mm d-1'],  # check name
-            'soil_clay__attr':['HWSD_clay','percent'],  # custom name; need to confirm
-            'soil_gravel__attr':['HWSD_gravel','percent'],  # custom name; need to confirm
-            'soil_sand__attr':['HWSD_sand','percent'],  # custom name; need to confirm
-            'soil_silt__attr':['HWSD_silt','percent'],   # custom name; need to confirm
-            'land_vegetation__normalized_diff_vegitation_index':['NDVI','-'],  # custom name
-            'soil_active-layer__porosity':['Porosity', '-'],  # check name
-            'soil_clay__grid':['SoilGrids1km_clay','km2'],  # custom name
-            'soil_sand__grid':['SoilGrids1km_sand','km2'],  # custom name
-            'soil_silt__grid':['SoilGrids1km_silt','km2'],  # custom name
-            'soil_clay__volume_fraction':['T_clay','percent'],
-            'soil_gravel__volume_fraction':['T_gravel','percent'],
-            'soil_sand__volume_fraction':['T_sand','percent'],
-            'soil_silt__volume_fraction':['T_silt','percent'], 
+            # -------------- CAMELS -------------- #
+            'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['p_mean','mm d-1'],
+            'land_surface_water__daily_mean_of_potential_evaporation_flux':['pet_mean','mm d-1'],
+            'p_seasonality':['p_seasonality', '-'],  # custom name
+            'atmosphere_water__precipitation_falling_as_snow_fraction':['frac_snow','-'],
             'ratio__mean_potential_evapotranspiration__mean_precipitation':['aridity','-'],
-            'land_surface_water__glacier_fraction':['glaciers','percent'],  # custom name
-            'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['meanP','mm d-1'],
-            'atmosphere_water__daily_mean_of_temperature':['meanTa','mm d-1'],  # custom name
-            'basin__mean_of_elevation':['meanelevation','m'],
-            'basin__mean_of_slope':['meanslope','m km-1'],
-            'bedrock__permeability':['permeability','m2'],
-            'p_seasonality':['seasonality_P', '-'],  # custom name
-            'land_surface_water__potential_evaporation_volume_flux_seasonality':['seasonality_PET', '-'],  # custom name
-            'land_surface_water__snow_fraction':['snow_fraction','percent'],
-            'atmosphere_water__precipitation_falling_as_snow_fraction':['snowfall_fraction','percent'],
-            'land_surface_water__permafrost_fraction': ['permafrost', '-'],  # custom name
+            'atmosphere_water__frequency_of_high_precipitation_events':['high_prec_freq','d yr-1'],
+            'atmosphere_water__mean_duration_of_high_precipitation_events':['high_prec_dur','d'],
+            'atmosphere_water__precipitation_frequency':['low_prec_freq','d yr-1'],
+            'atmosphere_water__low_precipitation_duration':['low_prec_dur','d'],
+            'basin__mean_of_elevation':['elev_mean','m'],
+            'basin__mean_of_slope':['slope_mean','m km-1'],
+            'basin__area':['area_gages2','km2'],
+            'land_vegetation__forest_area_fraction':['frac_forest','-'],
+            'land_vegetation__max_monthly_mean_of_leaf-area_index':['lai_max','-'],
+            'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index':['lai_diff','-'],
+            'land_vegetation__max_monthly_mean_of_green_vegetation_fraction':['gvf_max','-'],
+            'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction':['gvf_diff','-'],
+            'region_state_land~covered__area_fraction':['dom_land_cover_frac', 'percent'],  # custom name
+            'region_state_land~covered__area':['dom_land_cover', '-'],  # custom name
+            'root__depth':['root_depth_50', '-'],  # custom name
+            'soil_bedrock_top__depth__pelletier':['soil_depth_pelletier','m'],
+            'soil_bedrock_top__depth__statsgo':['soil_depth_statsgo','m'],
+            'soil__porosity':['soil_porosity','-'],
+            'soil__saturated_hydraulic_conductivity':['soil_conductivity','cm hr-1'],
+            'maximum_water_content':['max_water_content','m'],
+            'soil_sand__volume_fraction':['sand_frac','percent'],
+            'soil_silt__volume_fraction':['silt_frac','percent'], 
+            'soil_clay__volume_fraction':['clay_frac','percent'],
+            'geol_1st_class':['geol_1st_class', '-'],  # custom name
+            'geol_1st_class__fraction':['glim_1st_class_frac', '-'],  # custom name
+            'geol_2nd_class':['geol_2nd_class', '-'],  # custom name
+            'geol_2nd_class__fraction':['glim_2nd_class_frac', '-'],  # custom name
+            'basin__carbonate_rocks_area_fraction':['carbonate_rocks_frac','-'],
+            'soil_active-layer__porosity':['geol_porosity', '-'],  # check name
+            'bedrock__permeability':['geol_permeability','m2'],
+            'drainage__area':['DRAIN_SQKM', 'km2'],  # custom name
+            'land_surface__latitude':['lat','degrees'],
+            # --------------- CONUS --------------- #
+            # 'basin__area':['uparea','km2'],
+            # 'land_surface_water__Hargreaves_potential_evaporation_volume_flux':['ETPOT_Hargr', 'mm d-1'],  # check name
+            # 'free_land_surface_water':['FW', 'mm d-1'],  # check name
+            # 'soil_clay__attr':['HWSD_clay','percent'],  # custom name; need to confirm
+            # 'soil_gravel__attr':['HWSD_gravel','percent'],  # custom name; need to confirm
+            # 'soil_sand__attr':['HWSD_sand','percent'],  # custom name; need to confirm
+            # 'soil_silt__attr':['HWSD_silt','percent'],   # custom name; need to confirm
+            # 'land_vegetation__normalized_diff_vegitation_index':['NDVI','-'],  # custom name
+            # 'soil_active-layer__porosity':['Porosity', '-'],  # check name
+            # 'soil_clay__grid':['SoilGrids1km_clay','km2'],  # custom name
+            # 'soil_sand__grid':['SoilGrids1km_sand','km2'],  # custom name
+            # 'soil_silt__grid':['SoilGrids1km_silt','km2'],  # custom name
+            # 'soil_clay__volume_fraction':['T_clay','percent'],
+            # 'soil_gravel__volume_fraction':['T_gravel','percent'],
+            # 'soil_sand__volume_fraction':['T_sand','percent'],
+            # 'soil_silt__volume_fraction':['T_silt','percent'], 
+            # # Aridity in camels
+            # 'land_surface_water__glacier_fraction':['glaciers','percent'],  # custom name
+            # 'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['meanP','mm d-1'],
+            # 'atmosphere_water__daily_mean_of_temperature':['meanTa','mm d-1'],  # custom name
+            # 'basin__mean_of_elevation':['meanelevation','m'],
+            # 'basin__mean_of_slope':['meanslope','m km-1'],
+            # 'bedrock__permeability':['permeability','m2'],
+            # 'p_seasonality':['seasonality_P', '-'],  # custom name
+            # 'land_surface_water__potential_evaporation_volume_flux_seasonality':['seasonality_PET', '-'],  # custom name
+            # 'land_surface_water__snow_fraction':['snow_fraction','percent'],
+            # 'atmosphere_water__precipitation_falling_as_snow_fraction':['snowfall_fraction','percent'],
             ############## Outputs ##############
+            # --------- CAMELS/CONUS ---------- #
             'land_surface_water__runoff_volume_flux':['flow_sim','m3 s-1'],
             'srflow':['srflow','m3 s-1'],
             'ssflow':['ssflow','m3 s-1'],
