@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 
 from pathlib import Path
-import bmi_dm
+import dHBV_2_0.src.dHBV_2_0.bmi_dhbv as bmi_dhbv
 
 # setup a "success counter" for number of passing and failing bmi functions
 # keep track of function def fails (vs function call)
@@ -46,7 +46,7 @@ else:
     print("No configuration file found, exiting...")
     sys.exit()
 
-bmi=bmi_dm.BmiDm(cfg_file)
+bmi=bmi_dhbv.BmiDm(cfg_file)
 
 #-------------------------------------------------------------------
 # initialize()

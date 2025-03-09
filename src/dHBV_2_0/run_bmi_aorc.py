@@ -2,7 +2,7 @@
 
 import numpy as np
 from pathlib import Path
-import bmi_dm   # Load module bmi_dm (bmi_dm.py) from dhbv_2_0 package.
+import dHBV_2_0.src.dHBV_2_0.bmi_dhbv as bmi_dhbv   # Load module bmi_dm (bmi_dm.py) from dhbv_2_0 package.
 import os, os.path
 lstm_dir = os.path.expanduser('../dhbv_2_0/')
 os.chdir( lstm_dir )

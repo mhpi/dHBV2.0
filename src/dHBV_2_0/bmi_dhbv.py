@@ -341,30 +341,28 @@ class BmiDHbv2(Bmi):
             super(BmiDHbv2, self).__setattr__(key, value)
             
 
-    #-----------------------------
-    #-----------------------------
-    # BMI: Model Control Functions
-    #-----------------------------
-    #-----------------------------
+    #------------------------------#
+    # BMI: Model Control Functions #
+    #------------------------------#
     
     def initialize(self, config_filepath: Optional[str] = None) -> None:
         """
-        (BMI Control function) Initialize the dPLHydro model.
+        (BMI Control function) Initialize the BMI model.
 
-        dPL model BMI operates in two modes:
-        (Necessesitated by the fact that dPL model's pNN is forwarded on all of
-        a prediction period's data at once. Forwarding on each timestep individually
-        without saving/loading hidden states would slash LSTM performance. However,
-        feeding in hidden states day by day leeds to great efficiency losses vs
-        simply feeding all data at once due to carrying gradients at each step.)
+        This BMI operates in two modes:
+            (Necessesitated by the fact that dhBV 2.0's internal NN must forward
+            on all data at once. <-- Forwarding on each timestep one-by-one with
+            saving/loading hidden states would slash LSTM performance. However,
+            feeding in hidden states day-by-day leeds to great efficiency losses vs
+            simply feeding all data at once due to carrying gradients at each step.)
 
-        1) All attributes/forcings that will be forwarded on are fed to BMI before
-            'bmi.initialize()'. Then internal model is forwarded on all data
-            and generates predictions during '.initialize()'.
-        
-        2) Run '.initialize()', then pass data day by day as normal during
-        'bmi.update()'. If forwarding period is sufficiently small (say, <100 days),
-        then forwarding LSTM on individual days with saved states is reasonable.
+            1) Feed all input dataBMI before
+                'bmi.initialize()'. Then internal model is forwarded on all data
+                and generates predictions during '.initialize()'.
+            
+            2) Run '.initialize()', then pass data day by day as normal during
+                'bmi.update()'. If forwarding period is sufficiently small (say, <100 days),
+                then forwarding LSTM on individual days with saved states is reasonable.
 
         To this end, a configuration file can be specified either during
         `bmi.__init__()`, or during `.initialize()`. If running BMI as type (1),
