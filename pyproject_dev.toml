@@ -17,8 +17,21 @@ maintainers = [
 ]
 dependencies = [
     "torch",
-    "numpy",
+    "numpy>=1.26.4",
     "pandas",
+    "bmipy",
+    "geopandas",
+    "matplotlib",
+    "pydantic",
+    "xarray",
+    "scipy",
+    "netcdf4",
+    "hydra-core",
+    "tqdm",
+    "polars",
+    "zarr",
+    "sympy>=1.13.1",
+    "ipykernel",
 ]
 dynamic = ["version"]  # Add this line to indicate dynamic versioning
 
