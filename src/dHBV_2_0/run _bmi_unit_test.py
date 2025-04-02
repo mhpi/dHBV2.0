@@ -6,10 +6,10 @@ TODO: needs to be updated to latest dHBV 2.0 dMG implementation.
 """
 import os
 import sys
-import numpy as np
 from pathlib import Path
 
-from pathlib import Path
+import numpy as np
+
 import dHBV_2_0.src.dHBV_2_0.bmi_dhbv as bmi_dhbv
 
 # setup a "success counter" for number of passing and failing bmi functions

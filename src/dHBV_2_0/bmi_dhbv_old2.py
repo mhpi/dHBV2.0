@@ -10,21 +10,32 @@ import numpy as np
 import torch
 import yaml
 from bmipy import Bmi
-from conf import config
-from core.data import take_sample_test
-from models.model_handler import ModelHandler
+# from dMG.conf import config
+# from dMG.core.data import take_sample_test
+from dMG import ModelHandler
 from omegaconf import DictConfig, OmegaConf
 from pydantic import ValidationError
-from ruamel.yaml import YAML
+# from ruamel.yaml import YAML
 
 log = logging.getLogger(__name__)
 
 
-class BmiDm(Bmi):
-    def __init__(self, config_filepath: Optional[str] = None, verbose=False):
+class dHbv2Bmi(Bmi):
+    """
+    dHBV 2.0UH BMI: NextGen-compatible, differentiable, physics-informed ML model
+    for hydrologic forecasting. (Song et al., 2024)
+
+
+    Note: This BMI form of dHBV 2.0UH can only run forward inference. To train,
+            see dMG package (https://github.com/mhpi/generic_deltaModel).
+    """
+    def __init__(
+            self,
+            config_filepath: Optional[str] = None,
+            verbose=False
+        ) -> None:
         """
-        Create an instance of a differentiable, physics-informed ML model BMI
-        for dHBV 2.0UH (Song et al., 2024).
+        Create a BMI dHBV 2.0UH model ready for initialization.
 
         Parameters
         ----------
@@ -38,209 +49,22 @@ class BmiDm(Bmi):
         self._initialized = False
         self.verbose = verbose
 
+        self._var_loc = 'node'
+        self._var_grid_id = 0
+
+        self._start_time = 0.0
+        self._end_time = np.finfo('d').max
+        self._time_units = 's'
+
         self._values = {}
         self._nn_values = {}
         self._pm_values = {}
-        self._start_time = 0.0
-        self._end_time = np.finfo(float).max
-        self._time_units = 'day'  # NOTE: NextGen currently only supports seconds.
-        self._time_step_size = 1.0
-        self._var_array_lengths = 1
+
 
         # Timing BMI computations
         t_start = time.time()
         self.bmi_process_time = 0
 
-        # Basic model attributes
-        _att_map = {
-        'model_name':         "Differentiable, Physics-informed ML BMI",
-        'version':            '1.5',
-        'author_name':        'MHPI, Leo Lonzarich',
-        }
-        
-        # Input forcing/attribute CSDMS Standard Names
-        self._input_var_names = [
-            ############## Forcings ##############
-            'atmosphere_water__liquid_equivalent_precipitation_rate',
-            'land_surface_air__temperature',
-            'land_surface_air__max_of_temperature',  # custom name
-            'land_surface_air__min_of_temperature',  # custom name
-            'day__length',  # custom name
-            'land_surface_water__potential_evaporation_volume_flux',  # check name,
-            ############## Attributes ##############
-            # ------------- CAMELS ------------- #
-            'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate',
-            'land_surface_water__daily_mean_of_potential_evaporation_flux',
-            'p_seasonality',  # custom name
-            'atmosphere_water__precipitation_falling_as_snow_fraction',
-            'ratio__mean_potential_evapotranspiration__mean_precipitation',
-            'atmosphere_water__frequency_of_high_precipitation_events',
-            'atmosphere_water__mean_duration_of_high_precipitation_events',
-            'atmosphere_water__precipitation_frequency',
-            'atmosphere_water__low_precipitation_duration',
-            'basin__mean_of_elevation',
-            'basin__mean_of_slope',
-            'basin__area',
-            'land_vegetation__forest_area_fraction',
-            'land_vegetation__max_monthly_mean_of_leaf-area_index',
-            'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index',
-            'land_vegetation__max_monthly_mean_of_green_vegetation_fraction',
-            'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction',
-            'region_state_land~covered__area_fraction',  # custom name
-            'region_state_land~covered__area',  # custom name
-            'root__depth',  # custom name
-            'soil_bedrock_top__depth__pelletier',
-            'soil_bedrock_top__depth__statsgo',
-            'soil__porosity',
-            'soil__saturated_hydraulic_conductivity',
-            'maximum_water_content',
-            'soil_sand__volume_fraction',
-            'soil_silt__volume_fraction', 
-            'soil_clay__volume_fraction',
-            'geol_1st_class',  # custom name
-            'geol_1st_class__fraction',  # custom name
-            'geol_2nd_class',  # custom name
-            'geol_2nd_class__fraction',  # custom name
-            'basin__carbonate_rocks_area_fraction',
-            'soil_active-layer__porosity',  # check name
-            'bedrock__permeability'
-            # -------------- CONUS -------------- #
-            # 'land_surface_water__Hargreaves_potential_evaporation_volume_flux',
-            # 'free_land_surface_water',  # check name
-            # 'soil_clay__attr',  # custom name; need to confirm
-            # 'soil_gravel__attr',  # custom name; need to confirm
-            # 'soil_sand__attr',  # custo=m name; need to confirm
-            # 'soil_silt__attr',  # custom name; need to confirm
-            # 'land_vegetation__normalized_diff_vegitation_index',  # custom name
-            # 'soil_clay__grid',  # custom name
-            # 'soil_sand__grid',  # custom name
-            # 'soil_silt__grid',  # custom name
-            # 'land_surface_water__glacier_fraction',  # custom name
-            # 'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate',
-            # 'atmosphere_water__daily_mean_of_temperature',  # custom name
-            # 'land_surface_water__potential_evaporation_volume_flux_seasonality',  # custom name
-            # 'land_surface_water__snow_fraction',
-        ]
-
-        # Output variable names (CSDMS standard names)
-        self._output_var_names = [
-            'land_surface_water__runoff_volume_flux',
-            'srflow',
-            'ssflow',
-            'gwflow',
-            'AET_hydro',
-            'PET_hydro',
-            'flow_sim_no_rout',
-            'srflow_no_rout',
-            'ssflow_no_rout',
-            'gwflow_no_rout',
-            'excs',
-            'evapfactor',
-            'tosoil',
-            'percolation',
-            'BFI_sim'
-        ]
-
-        # Map CSDMS Standard Names to the model's internal variable names (For CAMELS, CONUS).
-        self._var_name_units_map = {
-            ############## Forcings ##############
-            # ------------- CAMELS ------------- #
-            'atmosphere_water__liquid_equivalent_precipitation_rate':['prcp(mm/day)', 'mm d-1'],
-            'land_surface_air__temperature':['tmean(C)','degC'],
-            'land_surface_air__max_of_temperature':['tmax(C)', 'degC'],  # custom name
-            'land_surface_air__min_of_temperature':['tmin(C)', 'degC'],  # custom name
-            'day__length':['dayl(s)', 's'],  # custom name
-            'land_surface_water__potential_evaporation_volume_flux':['PET_hargreaves(mm/day)', 'mm d-1'],  # check name
-            # -------------- CONUS -------------- #
-            # 'atmosphere_water__liquid_equivalent_precipitation_rate':['P', 'mm d-1'],
-            # 'land_surface_air__temperature':['Temp','degC'],
-            # 'land_surface_water__potential_evaporation_volume_flux':['PET', 'mm d-1'],  # check name
-            ############## Attributes ##############
-            # -------------- CAMELS -------------- #
-            'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['p_mean','mm d-1'],
-            'land_surface_water__daily_mean_of_potential_evaporation_flux':['pet_mean','mm d-1'],
-            'p_seasonality':['p_seasonality', '-'],  # custom name
-            'atmosphere_water__precipitation_falling_as_snow_fraction':['frac_snow','-'],
-            'ratio__mean_potential_evapotranspiration__mean_precipitation':['aridity','-'],
-            'atmosphere_water__frequency_of_high_precipitation_events':['high_prec_freq','d yr-1'],
-            'atmosphere_water__mean_duration_of_high_precipitation_events':['high_prec_dur','d'],
-            'atmosphere_water__precipitation_frequency':['low_prec_freq','d yr-1'],
-            'atmosphere_water__low_precipitation_duration':['low_prec_dur','d'],
-            'basin__mean_of_elevation':['elev_mean','m'],
-            'basin__mean_of_slope':['slope_mean','m km-1'],
-            'basin__area':['area_gages2','km2'],
-            'land_vegetation__forest_area_fraction':['frac_forest','-'],
-            'land_vegetation__max_monthly_mean_of_leaf-area_index':['lai_max','-'],
-            'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index':['lai_diff','-'],
-            'land_vegetation__max_monthly_mean_of_green_vegetation_fraction':['gvf_max','-'],
-            'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction':['gvf_diff','-'],
-            'region_state_land~covered__area_fraction':['dom_land_cover_frac', 'percent'],  # custom name
-            'region_state_land~covered__area':['dom_land_cover', '-'],  # custom name
-            'root__depth':['root_depth_50', '-'],  # custom name
-            'soil_bedrock_top__depth__pelletier':['soil_depth_pelletier','m'],
-            'soil_bedrock_top__depth__statsgo':['soil_depth_statsgo','m'],
-            'soil__porosity':['soil_porosity','-'],
-            'soil__saturated_hydraulic_conductivity':['soil_conductivity','cm hr-1'],
-            'maximum_water_content':['max_water_content','m'],
-            'soil_sand__volume_fraction':['sand_frac','percent'],
-            'soil_silt__volume_fraction':['silt_frac','percent'], 
-            'soil_clay__volume_fraction':['clay_frac','percent'],
-            'geol_1st_class':['geol_1st_class', '-'],  # custom name
-            'geol_1st_class__fraction':['glim_1st_class_frac', '-'],  # custom name
-            'geol_2nd_class':['geol_2nd_class', '-'],  # custom name
-            'geol_2nd_class__fraction':['glim_2nd_class_frac', '-'],  # custom name
-            'basin__carbonate_rocks_area_fraction':['carbonate_rocks_frac','-'],
-            'soil_active-layer__porosity':['geol_porosity', '-'],  # check name
-            'bedrock__permeability':['geol_permeability','m2'],
-            'drainage__area':['DRAIN_SQKM', 'km2'],  # custom name
-            'land_surface__latitude':['lat','degrees'],
-            # --------------- CONUS --------------- #
-            # 'basin__area':['uparea','km2'],
-            # 'land_surface_water__Hargreaves_potential_evaporation_volume_flux':['ETPOT_Hargr', 'mm d-1'],  # check name
-            # 'free_land_surface_water':['FW', 'mm d-1'],  # check name
-            # 'soil_clay__attr':['HWSD_clay','percent'],  # custom name; need to confirm
-            # 'soil_gravel__attr':['HWSD_gravel','percent'],  # custom name; need to confirm
-            # 'soil_sand__attr':['HWSD_sand','percent'],  # custom name; need to confirm
-            # 'soil_silt__attr':['HWSD_silt','percent'],   # custom name; need to confirm
-            # 'land_vegetation__normalized_diff_vegitation_index':['NDVI','-'],  # custom name
-            # 'soil_active-layer__porosity':['Porosity', '-'],  # check name
-            # 'soil_clay__grid':['SoilGrids1km_clay','km2'],  # custom name
-            # 'soil_sand__grid':['SoilGrids1km_sand','km2'],  # custom name
-            # 'soil_silt__grid':['SoilGrids1km_silt','km2'],  # custom name
-            # 'soil_clay__volume_fraction':['T_clay','percent'],
-            # 'soil_gravel__volume_fraction':['T_gravel','percent'],
-            # 'soil_sand__volume_fraction':['T_sand','percent'],
-            # 'soil_silt__volume_fraction':['T_silt','percent'], 
-            # # Aridity in camels
-            # 'land_surface_water__glacier_fraction':['glaciers','percent'],  # custom name
-            # 'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['meanP','mm d-1'],
-            # 'atmosphere_water__daily_mean_of_temperature':['meanTa','mm d-1'],  # custom name
-            # 'basin__mean_of_elevation':['meanelevation','m'],
-            # 'basin__mean_of_slope':['meanslope','m km-1'],
-            # 'bedrock__permeability':['permeability','m2'],
-            # 'p_seasonality':['seasonality_P', '-'],  # custom name
-            # 'land_surface_water__potential_evaporation_volume_flux_seasonality':['seasonality_PET', '-'],  # custom name
-            # 'land_surface_water__snow_fraction':['snow_fraction','percent'],
-            # 'atmosphere_water__precipitation_falling_as_snow_fraction':['snowfall_fraction','percent'],
-            ############## Outputs ##############
-            # --------- CAMELS/CONUS ---------- #
-            'land_surface_water__runoff_volume_flux':['flow_sim','m3 s-1'],
-            'srflow':['srflow','m3 s-1'],
-            'ssflow':['ssflow','m3 s-1'],
-            'gwflow':['gwflow','m3 s-1'],
-            'AET_hydro':['AET_hydro','m3 s-1'],
-            'PET_hydro':['PET_hydro','m3 s-1'],
-            'flow_sim_no_rout':['flow_sim_no_rout','m3 s-1'],
-            'srflow_no_rout':['srflow_no_rout','m3 s-1'],
-            'ssflow_no_rout':['ssflow_no_rout','m3 s-1'],
-            'gwflow_no_rout':['gwflow_no_rout','m3 s-1'],
-            'excs':['excs','-'],
-            'evapfactor':['evapfactor','-'],
-            'tosoil':['tosoil','m3 s-1'],
-            'percolation':['percolation','-'],
-            'BFI_sim':['BFI_sim','-'],
-        }
-        
         if config_filepath:
             # Read in model & BMI configurations.
             self.initialize_config(config_filepath)
@@ -253,24 +77,290 @@ class BmiDm(Bmi):
         if self.verbose:
             log.info(f"BMI init took {time.time() - t_start} s")
 
+    #-----------------------------------------
+    # Required, static attributes of the model
+    #-----------------------------------------
+    _att_map = {
+        'model_name':         "dHVB 2.0UH for NextGen",
+        'version':            '2.0',
+        'author_name':        'Leo Lonzarich',
+        'time_step_size':     86400,
+        'time_units':         'seconds',
+        # 'time_step_type':     '',
+        # 'grid_type':          'scalar',
+        # 'step_method':        '',
+    }
+        
+    #--------------------------------------------
+    # Input variable names (CSDMS standard names)
+    #--------------------------------------------
+    _input_var_names = [
+        ############## Dynamic Forcings ##############
+        'atmosphere_water__liquid_equivalent_precipitation_rate',
+        'land_surface_air__temperature',
+        'land_surface_water__potential_evaporation_volume_flux',  # check name,
+        ############## Static Attributes ##############  <-- These are not "variables"
+        # 'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate',
+        # 'land_surface_water__daily_mean_of_potential_evaporation_flux',
+        # 'p_seasonality',  # custom name
+        # 'atmosphere_water__precipitation_falling_as_snow_fraction',
+        # 'ratio__mean_potential_evapotranspiration__mean_precipitation',
+        # 'atmosphere_water__frequency_of_high_precipitation_events',
+        # 'atmosphere_water__mean_duration_of_high_precipitation_events',
+        # 'atmosphere_water__precipitation_frequency',
+        # 'atmosphere_water__low_precipitation_duration',
+        # 'basin__mean_of_elevation',
+        # 'basin__mean_of_slope',
+        # 'basin__area',
+        # 'land_vegetation__forest_area_fraction',
+        # 'land_vegetation__max_monthly_mean_of_leaf-area_index',
+        # 'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index',
+        # 'land_vegetation__max_monthly_mean_of_green_vegetation_fraction',
+        # 'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction',
+        # 'region_state_land~covered__area_fraction',  # custom name
+        # 'region_state_land~covered__area',  # custom name
+        # 'root__depth',  # custom name
+        # 'soil_bedrock_top__depth__pelletier',
+        # 'soil_bedrock_top__depth__statsgo',
+        # 'soil__porosity',
+        # 'soil__saturated_hydraulic_conductivity',
+        # 'maximum_water_content',
+        # 'soil_sand__volume_fraction',
+        # 'soil_silt__volume_fraction', 
+        # 'soil_clay__volume_fraction',
+        # 'geol_1st_class',  # custom name
+        # 'geol_1st_class__fraction',  # custom name
+        # 'geol_2nd_class',  # custom name
+        # 'geol_2nd_class__fraction',  # custom name
+        # 'basin__carbonate_rocks_area_fraction',
+        # 'soil_active-layer__porosity',  # check name
+        # 'bedrock__permeability',
+        # 'land_surface_water__permafrost_fraction',  # custom name
+        # 'land_surface_water__Hargreaves_potential_evaporation_volume_flux',
+        # 'free_land_surface_water',  # check name
+        # 'soil_clay__attr',  # custom name; need to confirm
+        # 'soil_gravel__attr',  # custom name; need to confirm
+        # 'soil_sand__attr',  # custo=m name; need to confirm
+        # 'soil_silt__attr',  # custom name; need to confirm
+        # 'land_vegetation__normalized_diff_vegitation_index',  # custom name
+        # 'soil_clay__grid',  # custom name
+        # 'soil_sand__grid',  # custom name
+        # 'soil_silt__grid',  # custom name
+        # 'land_surface_water__glacier_fraction',  # custom name
+        # 'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate',
+        # 'atmosphere_water__daily_mean_of_temperature',  # custom name
+        # 'land_surface_water__potential_evaporation_volume_flux_seasonality',  # custom name
+        # 'land_surface_water__snow_fraction',
+    ]
+
+    #------------------------------------------- #
+    # Output variable names (CSDMS standard names)
+    #------------------------------------------- #
+    _output_var_names = [
+        'land_surface_water__runoff_volume_flux',
+        # 'srflow', ## TODO: give standard names for these others
+        # 'ssflow',
+        # 'gwflow',
+        # 'AET_hydro',
+        # 'PET_hydro',
+        # 'flow_sim_no_rout',
+        # 'srflow_no_rout',
+        # 'ssflow_no_rout',
+        # 'gwflow_no_rout',
+        # 'excs',
+        # 'evapfactor',
+        # 'tosoil',
+        # 'percolation',
+        # 'BFI_sim'
+    ]
+
+    #-------------------------------------------------- #
+    # Create a Python dictionary that maps CSDMS Standard
+    # Names to the model's internal variable names.
+    #-------------------------------------------------- #
+    _var_name_units_map = {
+        ############## Outputs ##############
+        'land_surface_water__runoff_volume_flux': ['flow_sim','m3 s-1'],
+        # 'srflow': ['srflow','m3 s-1'], ## TODO: give standard names for these others
+        # 'ssflow': ['ssflow','m3 s-1'],
+        # 'gwflow': ['gwflow','m3 s-1'],
+        # 'AET_hydro': ['AET_hydro','m3 s-1'],
+        # 'PET_hydro': ['PET_hydro','m3 s-1'],
+        # 'flow_sim_no_rout': ['flow_sim_no_rout','m3 s-1'],
+        # 'srflow_no_rout': ['srflow_no_rout','m3 s-1'],
+        # 'ssflow_no_rout': ['ssflow_no_rout','m3 s-1'],
+        # 'gwflow_no_rout': ['gwflow_no_rout','m3 s-1'],
+        # 'excs': ['excs','-'],
+        # 'evapfactor': ['evapfactor','-'],
+        # 'tosoil': ['tosoil','m3 s-1'],
+        # 'percolation': ['percolation','-'],
+        # 'BFI_sim': ['BFI_sim','-'],
+        ############## Dynamic Input Forcings ##############
+        'atmosphere_water__liquid_equivalent_precipitation_rate': ['P', 'mm d-1'],
+        'land_surface_air__temperature': ['Temp','degC'],
+        'land_surface_water__potential_evaporation_volume_flux': ['PET', 'mm d-1'],  # check name
+        ############## Static Input Attributes ##############
+        'basin__area': ['uparea','km2'],
+        'land_surface_water__Hargreaves_potential_evaporation_volume_flux': ['ETPOT_Hargr', 'mm d-1'],  # check name
+        'free_land_surface_water': ['FW', 'mm d-1'],  # check name
+        'soil_clay__attr': ['HWSD_clay','percent'],  # custom name; need to confirm
+        'soil_gravel__attr': ['HWSD_gravel','percent'],  # custom name; need to confirm
+        'soil_sand__attr': ['HWSD_sand','percent'],  # custom name; need to confirm
+        'soil_silt__attr': ['HWSD_silt','percent'],   # custom name; need to confirm
+        'land_vegetation__normalized_diff_vegitation_index': ['NDVI','-'],  # custom name
+        'soil_active-layer__porosity': ['Porosity', '-'],  # check name
+        'soil_clay__grid': ['SoilGrids1km_clay','km2'],  # custom name
+        'soil_sand__grid': ['SoilGrids1km_sand','km2'],  # custom name
+        'soil_silt__grid': ['SoilGrids1km_silt','km2'],  # custom name
+        'soil_clay__volume_fraction': ['T_clay','percent'],
+        'soil_gravel__volume_fraction': ['T_gravel','percent'],
+        'soil_sand__volume_fraction': ['T_sand','percent'],
+        'soil_silt__volume_fraction': ['T_silt','percent'], 
+        'ratio__mean_potential_evapotranspiration__mean_precipitation': ['aridity','-'],
+        'land_surface_water__glacier_fraction': ['glaciers','percent'],  # custom name
+        'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['meanP','mm d-1'],
+        'atmosphere_water__daily_mean_of_temperature': ['meanTa','mm d-1'],  # custom name
+        'basin__mean_of_elevation': ['meanelevation','m'],
+        'basin__mean_of_slope': ['meanslope','m km-1'],
+        'bedrock__permeability': ['permeability','m2'],
+        'p_seasonality': ['seasonality_P', '-'],  # custom name
+        'land_surface_water__potential_evaporation_volume_flux_seasonality': ['seasonality_PET', '-'],  # custom name
+        'land_surface_water__snow_fraction': ['snow_fraction','percent'],
+        'atmosphere_water__precipitation_falling_as_snow_fraction': ['snowfall_fraction','percent'],
+        'land_surface_water__permafrost_fraction': ['permafrost', '-'],  # custom name
+    }
+
+    #-----------------------------
+    # Static input attribute names
+    #-----------------------------
+    _static_attributes_list = [
+        'uparea',
+        'ETPOT_Hargr',
+        'FW',
+        'HWSD_clay',
+        'HWSD_gravel',
+        'HWSD_sand',
+        'HWSD_silt',
+        'NDVI',
+        'Porosity',
+        'SoilGrids1km_clay',
+        'SoilGrids1km_sand',
+        'SoilGrids1km_silt',
+        'T_clay',
+        'T_gravel',
+        'T_sand',
+        'T_silt',
+        'aridity',
+        'glaciers',
+        'meanP',
+        'meanTa',
+        'meanelevation',
+        'meanslope',
+        'permeability',
+        'seasonality_P',
+        'seasonality_PET',
+        'snow_fraction',
+        'snowfall_fraction',
+        'permafrost',
+    ]
+
+    def __getattribute__(self, item: str) -> Any:
+        """
+        Customize instance attribute access.
+
+        Credit: Scott Peckham
+
+        For items corresponding to BMI input or output variables (numpy arrays)
+        and have values that are only a single-element array, deviate from the
+        standard behavior and return the single array element.
+        Fall back to default behavior otherwise.
+
+        This supports having a BMI variable be backed by a numpy array, while
+        also allowing the attribute to be used as just a scalar.
+
+        Parameters
+        ----------
+        item : str
+            The name of the attribute item to get.
+
+        Returns
+        -------
+        Any
+            The value of the named item.
+        """
+        # Have these work explicitly (or else loops)
+        if item == '_input_var_names' or item == '_output_var_names':
+            return super(BmiDHbv2, self).__getattribute__(item)
+
+        # By default, for things other than BMI variables, use normal behavior
+        if item not in super(BmiDHbv2, self).__getattribute__('_input_var_names') and item not in super(BmiDHbv2, self).__getattribute__('_output_var_names'):
+            return super(BmiDHbv2, self).__getattribute__(item)
+
+        # Return the single scalar value from any ndarray of size 1
+        value = super(BmiDHbv2, self).__getattribute__(item)
+        if isinstance(value, np.ndarray) and value.size == 1:
+            return value[0]
+        else:
+            return value
+
+    def __setattr__(self, key: str, value: Union[np.ndarray, Any]) -> None:
+        """
+        Customized instance attribute mutator functionality.
+
+        Credit: Scott Peckham
+
+        For attributes with keys indicating they are a BMI input/output variable 
+        (numpy array), wrap any scalar value as a one-element numpy array and
+        use in a nested call to the superclass implementation of this function. 
+        Otherwise, pass the key + value to a nested call.
+
+        This supports having a BMI variable be backed by a numpy array, even if
+        initialized using a scalar, while otherwise maintaining standard behavior.
+
+        Parameters
+        ----------
+        key : str
+            The name of the attribute to set.
+        value : Union[np.ndarray, Any]
+            The value to set the attribute to.
+        """
+        # Have these work explicitly (or else loops)
+        if key == '_input_var_names' or key == '_output_var_names':
+            super(BmiDHbv2, self).__setattr__(key, value)
+
+        # Pass thru if value is already an array
+        if isinstance(value, np.ndarray):
+            super(BmiDHbv2, self).__setattr__(key, value)
+        # Override to put scalars into ndarray for BMI input/output variables
+        elif key in self._input_var_names or key in self._output_var_names:
+            super(BmiDHbv2, self).__setattr__(key, np.array([value]))
+        # By default, use normal behavior
+        else:
+            super(BmiDHbv2, self).__setattr__(key, value)
+            
+
+    #------------------------------#
+    # BMI: Model Control Functions #
+    #------------------------------#
+    
     def initialize(self, config_filepath: Optional[str] = None) -> None:
         """
-        (BMI Control function) Initialize the dPLHydro model.
+        (BMI Control function) Initialize the BMI model.
 
-        dPL model BMI operates in two modes:
-        (Necessesitated by the fact that dPL model's pNN is forwarded on all of
-        a prediction period's data at once. Forwarding on each timestep individually
-        without saving/loading hidden states would slash LSTM performance. However,
-        feeding in hidden states day by day leeds to great efficiency losses vs
-        simply feeding all data at once due to carrying gradients at each step.)
+        This BMI operates in two modes:
+            (Necessesitated by the fact that dhBV 2.0's internal NN must forward
+            on all data at once. <-- Forwarding on each timestep one-by-one with
+            saving/loading hidden states would slash LSTM performance. However,
+            feeding in hidden states day-by-day leeds to great efficiency losses vs
+            simply feeding all data at once due to carrying gradients at each step.)
 
-        1) All attributes/forcings that will be forwarded on are fed to BMI before
-            'bmi.initialize()'. Then internal model is forwarded on all data
-            and generates predictions during '.initialize()'.
-        
-        2) Run '.initialize()', then pass data day by day as normal during
-        'bmi.update()'. If forwarding period is sufficiently small (say, <100 days),
-        then forwarding LSTM on individual days with saved states is reasonable.
+            1) Feed all input dataBMI before
+                'bmi.initialize()'. Then internal model is forwarded on all data
+                and generates predictions during '.initialize()'.
+            
+            2) Run '.initialize()', then pass data day by day as normal during
+                'bmi.update()'. If forwarding period is sufficiently small (say, <100 days),
+                then forwarding LSTM on individual days with saved states is reasonable.
 
         To this end, a configuration file can be specified either during
         `bmi.__init__()`, or during `.initialize()`. If running BMI as type (1),

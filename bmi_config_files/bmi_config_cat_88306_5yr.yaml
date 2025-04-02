@@ -32,7 +32,7 @@ snow_fraction: 0.02967
 aridity: 1.041
 NDVI: 0.594
 
-train_cfg_file: ../trained_models/merit_conus_40yr/config.yaml
+config_model: ../trained_models/merit_conus_40yr/config.yaml
 initial_state: zero  # zero: set initial states of the model to zero
 verbose: 1  # 0: no output, 1: print output
 

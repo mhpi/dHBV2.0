@@ -1,49 +1,184 @@
-"""BMI wrapper for interfacing dHBV 2.0 with NOAA-OWP NextGen framework."""
-import sys
+"""BMI wrapper for interfacing dHBV 2.0 with NOAA-OWP NextGen framework.
 
-
+Motivated by LSTM BMI of Austin Raney, Jonathan Frame.
+"""
 import logging
 import os
+import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union, Iterable
 
 import numpy as np
+from numpy.typing import NDArray
 import torch
 import yaml
 from bmipy import Bmi
-from dMG.conf import config
-from dMG.core.data import take_sample_test
-from dMG.models.model_handler import ModelHandler
+# from dMG.conf import config
+# from dMG.core.data import take_sample_test
+from dMG import ModelHandler, import_data_sampler
 from omegaconf import DictConfig, OmegaConf
 from pydantic import ValidationError
-from ruamel.yaml import YAML
+# from ruamel.yaml import YAML
+import logging
 
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-class BmiDHbv2(Bmi):
-    """
-    dHBV 2.0UH BMI: NextGen-compatible, differentiable, physics-informed ML model
-    for hydrologic forecasting. (Song et al., 2024)
+# -------------------------------------------- #
+# Dynamic input variables (CSDMS standard names)
+# -------------------------------------------- #
+_dynamic_input_vars = [
+    ('atmosphere_water__liquid_equivalent_precipitation_rate', 'mm d-1'),
+    ('land_surface_air__temperature', 'degC'),
+    ('land_surface_water__potential_evaporation_volume_flux', 'mm d-1'),
+]
+
+# ------------------------------------------- #
+# Static input variables (CSDMS standard names)
+# ------------------------------------------- #
+_static_input_vars = [
+    ('basin__area', 'km2'),
+    ('land_surface_water__Hargreaves_potential_evaporation_volume_flux', 'mm d-1'),
+    ('free_land_surface_water', 'mm d-1'),
+    ('soil_clay__attr', 'percent'),
+    ('soil_gravel__attr', 'percent'),
+    ('soil_sand__attr', 'percent'),
+    ('soil_silt__attr', 'percent'),
+    ('land_vegetation__normalized_diff_vegetation_index', '-'),
+    ('soil_active-layer__porosity', '-'),
+    ('soil_clay__grid', 'km2'),
+    ('soil_sand__grid', 'km2'),
+    ('soil_silt__grid', 'km2'),
+    ('soil_clay__volume_fraction', 'percent'),
+    ('soil_gravel__volume_fraction', 'percent'),
+    ('soil_sand__volume_fraction', 'percent'),
+    ('soil_silt__volume_fraction', 'percent'),
+    ('ratio__mean_potential_evapotranspiration__mean_precipitation', '-'),
+    ('land_surface_water__glacier_fraction', 'percent'),
+    ('atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate', 'mm d-1'),
+    ('atmosphere_water__daily_mean_of_temperature', 'degC'),
+    ('basin__mean_of_elevation', 'm'),
+    ('basin__mean_of_slope', 'm km-1'),
+    ('bedrock__permeability', 'm2'),
+    ('p_seasonality', '-'),
+    ('land_surface_water__potential_evaporation_volume_flux_seasonality', '-'),
+    ('land_surface_water__snow_fraction', 'percent'),
+    ('atmosphere_water__precipitation_falling_as_snow_fraction', 'percent'),
+    ('land_surface_water__permafrost_fraction', '-'),
+]
+
+# ------------------------------------- #
+# Output variables (CSDMS standard names)
+# ------------------------------------- #
+_output_vars = [
+    ('land_surface_water__runoff_volume_flux', 'm3 s-1'),
+]
+
+# ---------------------------------------------- #
+# Internal variable names <-> CSDMS standard names
+# ---------------------------------------------- #
+_var_name_internal_map = {
+    # ----------- Dynamic inputs -----------
+    'P': 'atmosphere_water__liquid_equivalent_precipitation_rate',
+    'Temp': 'land_surface_air__temperature',
+    'PET': 'land_surface_water__potential_evaporation_volume_flux',
+    # ----------- Static inputs -----------
+    'uparea': 'basin__area',
+    'ETPOT_Hargr': 'land_surface_water__Hargreaves_potential_evaporation_volume_flux',
+    'FW': 'free_land_surface_water',
+    'HWSD_clay': 'soil_clay__attr',
+    'HWSD_gravel': 'soil_gravel__attr',
+    'HWSD_sand': 'soil_sand__attr',
+    'HWSD_silt': 'soil_silt__attr',
+    'NDVI': 'land_vegetation__normalized_diff_vegetation_index',
+    'Porosity': 'soil_active-layer__porosity',
+    'SoilGrids1km_clay': 'soil_clay__grid',
+    'SoilGrids1km_sand': 'soil_sand__grid',
+    'SoilGrids1km_silt': 'soil_silt__grid',
+    'T_clay': 'soil_clay__volume_fraction',
+    'T_gravel': 'soil_gravel__volume_fraction',
+    'T_sand': 'soil_sand__volume_fraction',
+    'T_silt': 'soil_silt__volume_fraction',
+    'aridity': 'ratio__mean_potential_evapotranspiration__mean_precipitation',
+    'glaciers': 'land_surface_water__glacier_fraction',
+    'meanP': 'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate',
+    'meanTa': 'atmosphere_water__daily_mean_of_temperature',
+    'meanelevation': 'basin__mean_of_elevation',
+    'meanslope': 'basin__mean_of_slope',
+    'permeability': 'bedrock__permeability',
+    'seasonality_P': 'p_seasonality',
+    'seasonality_PET': 'land_surface_water__potential_evaporation_volume_flux_seasonality',
+    'snow_fraction': 'land_surface_water__snow_fraction',
+    'snowfall_fraction': 'atmosphere_water__precipitation_falling_as_snow_fraction',
+    'permafrost': 'land_surface_water__permafrost_fraction',
+    # ----------- Outputs -----------
+    'flow_sim': 'land_surface_water__runoff_volume_flux',
+}
+
+_var_name_external_map = {v: k for k, v in _var_name_internal_map.items()}
 
 
-    Note: This BMI form of dHBV 2.0UH can only run forward inference. To train,
-            see dMG package (https://github.com/mhpi/generic_deltaModel).
+def map_to_external(name: str):
+    """Return the external name (exposed via BMI) for a given internal name."""
+    return _var_name_internal_map[name]
+
+
+def map_to_internal(name: str):
+    """Return the internal name for a given external name (exposed via BMI)."""
+    return _var_name_external_map[name]
+
+
+
+
+################################################################################
+################################################################################
+
+
+# MAIN BMI >>>>
+
+
+################################################################################
+################################################################################
+
+
+def bmi_array(arr: list[float]) -> NDArray:
+    """Trivial wrapper function to ensure the expected numpy array datatype is used."""
+    return np.array(arr, dtype="float64")
+
+
+class deltaModelBmi(Bmi):
     """
+    dHBV 2.0UH BMI: NextGen-compatible, differentiable, physics-informed ML
+    model for hydrologic forecasting. (Song et al., 2024)
+
+    Note: This dHBV 2.0UH BMI can only run forward inference. To train,
+        see dMG package (https://github.com/mhpi/generic_deltaModel).
+    """
+    _att_map = {
+        'model_name':         'dHVB 2.0UH for NextGen',
+        'version':            '2.0',
+        'author_name':        'Leo Lonzarich',
+        'time_step_size':     86400,
+        'time_units':         'seconds',
+        # 'time_step_type':     '',
+        # 'grid_type':          'scalar',
+        # 'step_method':        '',
+    }
+    
     def __init__(
             self,
-            config_filepath: Optional[str] = None,
-            verbose=False
+            config_path: Optional[str] = None,
+            verbose=False,
         ) -> None:
-        """
-        Create a BMI dHBV 2.0UH model ready for initialization.
+        """Create a BMI dHBV 2.0UH model ready for initialization.
 
         Parameters
         ----------
-        config_filepath : str, optional
+        config_path
             Path to the BMI configuration file.
-        verbose : bool, optional
+        verbose
             Enables debug print statements if True.
         """
         super().__init__()
@@ -58,311 +193,69 @@ class BmiDHbv2(Bmi):
         self._end_time = np.finfo('d').max
         self._time_units = 's'
 
-        self._values = {}
-        self._nn_values = {}
-        self._pm_values = {}
-
+        self.config_bmi = None
+        self.config_model = None
 
         # Timing BMI computations
         t_start = time.time()
         self.bmi_process_time = 0
 
-        if config_filepath:
-            # Read in model & BMI configurations.
-            self.initialize_config(config_filepath)
+        # Read BMI and model configuration files.
+        if config_path is not None:
+            if not Path(config_path).is_file():
+                raise FileNotFoundError(f"Configuration file not found: {config_path}")
+            with open(config_path, 'r') as f:
+                self.config_bmi = yaml.safe_load(f)
+            
+            try:
+                with open(self.config_bmi.get('config_model'), 'r') as f:
+                    self.config_model = yaml.safe_load(f)
+            except Exception as e:
+                raise RuntimeError(f"Failed to load model configuration: {e}")
+        
+            self.sampler = import_data_sampler(self.config_model['data_sampler'])(self.config_model)
 
-            # Create lookup tables for CSDMS variables + init variable arrays.
-            self.init_var_dicts()
+                    
+        # Initialize variables.
+        self._dynamic_var = self._set_vars(_dynamic_input_vars, bmi_array([0.0]))
+        self._static_var = self._set_vars(_static_input_vars, bmi_array([0.0]))
+        self._output_vars = self._set_vars(_output_vars, bmi_array([0.0]))
 
         # Track total BMI runtime.
         self.bmi_process_time += time.time() - t_start
         if self.verbose:
             log.info(f"BMI init took {time.time() - t_start} s")
 
-    #-----------------------------------------
-    # Required, static attributes of the model
-    #-----------------------------------------
-    _att_map = {
-        'model_name':         "dHVB 2.0UH for NextGen",
-        'version':            '2.0',
-        'author_name':        'Leo Lonzarich',
-        'time_step_size':     86400,
-        'time_units':         'seconds',
-        # 'time_step_type':     '',
-        # 'grid_type':          'scalar',
-        # 'step_method':        '',
-    }
-        
-    #--------------------------------------------
-    # Input variable names (CSDMS standard names)
-    #--------------------------------------------
-    _input_var_names = [
-        ############## Dynamic Forcings ##############
-        'atmosphere_water__liquid_equivalent_precipitation_rate',
-        'land_surface_air__temperature',
-        'land_surface_water__potential_evaporation_volume_flux',  # check name,
-        ############## Static Attributes ##############  <-- These are not "variables"
-        # 'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate',
-        # 'land_surface_water__daily_mean_of_potential_evaporation_flux',
-        # 'p_seasonality',  # custom name
-        # 'atmosphere_water__precipitation_falling_as_snow_fraction',
-        # 'ratio__mean_potential_evapotranspiration__mean_precipitation',
-        # 'atmosphere_water__frequency_of_high_precipitation_events',
-        # 'atmosphere_water__mean_duration_of_high_precipitation_events',
-        # 'atmosphere_water__precipitation_frequency',
-        # 'atmosphere_water__low_precipitation_duration',
-        # 'basin__mean_of_elevation',
-        # 'basin__mean_of_slope',
-        # 'basin__area',
-        # 'land_vegetation__forest_area_fraction',
-        # 'land_vegetation__max_monthly_mean_of_leaf-area_index',
-        # 'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index',
-        # 'land_vegetation__max_monthly_mean_of_green_vegetation_fraction',
-        # 'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction',
-        # 'region_state_land~covered__area_fraction',  # custom name
-        # 'region_state_land~covered__area',  # custom name
-        # 'root__depth',  # custom name
-        # 'soil_bedrock_top__depth__pelletier',
-        # 'soil_bedrock_top__depth__statsgo',
-        # 'soil__porosity',
-        # 'soil__saturated_hydraulic_conductivity',
-        # 'maximum_water_content',
-        # 'soil_sand__volume_fraction',
-        # 'soil_silt__volume_fraction', 
-        # 'soil_clay__volume_fraction',
-        # 'geol_1st_class',  # custom name
-        # 'geol_1st_class__fraction',  # custom name
-        # 'geol_2nd_class',  # custom name
-        # 'geol_2nd_class__fraction',  # custom name
-        # 'basin__carbonate_rocks_area_fraction',
-        # 'soil_active-layer__porosity',  # check name
-        # 'bedrock__permeability',
-        # 'land_surface_water__permafrost_fraction',  # custom name
-        # 'land_surface_water__Hargreaves_potential_evaporation_volume_flux',
-        # 'free_land_surface_water',  # check name
-        # 'soil_clay__attr',  # custom name; need to confirm
-        # 'soil_gravel__attr',  # custom name; need to confirm
-        # 'soil_sand__attr',  # custo=m name; need to confirm
-        # 'soil_silt__attr',  # custom name; need to confirm
-        # 'land_vegetation__normalized_diff_vegitation_index',  # custom name
-        # 'soil_clay__grid',  # custom name
-        # 'soil_sand__grid',  # custom name
-        # 'soil_silt__grid',  # custom name
-        # 'land_surface_water__glacier_fraction',  # custom name
-        # 'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate',
-        # 'atmosphere_water__daily_mean_of_temperature',  # custom name
-        # 'land_surface_water__potential_evaporation_volume_flux_seasonality',  # custom name
-        # 'land_surface_water__snow_fraction',
-    ]
-
-    #---------------------------------------------
-    # Output variable names (CSDMS standard names)
-    #---------------------------------------------
-    _output_var_names = [
-        'land_surface_water__runoff_volume_flux',
-        # 'srflow', ## TODO: find standard names for these others
-        # 'ssflow',
-        # 'gwflow',
-        # 'AET_hydro',
-        # 'PET_hydro',
-        # 'flow_sim_no_rout',
-        # 'srflow_no_rout',
-        # 'ssflow_no_rout',
-        # 'gwflow_no_rout',
-        # 'excs',
-        # 'evapfactor',
-        # 'tosoil',
-        # 'percolation',
-        # 'BFI_sim'
-    ]
-
-    #----------------------------------------------------
-    # Create a Python dictionary that maps CSDMS Standard
-    # Names to the model's internal variable names.
-    #----------------------------------------------------
-    _var_name_units_map = {
-        ############## Outputs ##############
-        'land_surface_water__runoff_volume_flux': ['flow_sim','m3 s-1'],
-        # 'srflow': ['srflow','m3 s-1'], ## TODO: find standard names for these others
-        # 'ssflow': ['ssflow','m3 s-1'],
-        # 'gwflow': ['gwflow','m3 s-1'],
-        # 'AET_hydro': ['AET_hydro','m3 s-1'],
-        # 'PET_hydro': ['PET_hydro','m3 s-1'],
-        # 'flow_sim_no_rout': ['flow_sim_no_rout','m3 s-1'],
-        # 'srflow_no_rout': ['srflow_no_rout','m3 s-1'],
-        # 'ssflow_no_rout': ['ssflow_no_rout','m3 s-1'],
-        # 'gwflow_no_rout': ['gwflow_no_rout','m3 s-1'],
-        # 'excs': ['excs','-'],
-        # 'evapfactor': ['evapfactor','-'],
-        # 'tosoil': ['tosoil','m3 s-1'],
-        # 'percolation': ['percolation','-'],
-        # 'BFI_sim': ['BFI_sim','-'],
-        ############## Dynamic Input Forcings ##############
-        'atmosphere_water__liquid_equivalent_precipitation_rate': ['P', 'mm d-1'],
-        'land_surface_air__temperature': ['Temp','degC'],
-        'land_surface_water__potential_evaporation_volume_flux': ['PET', 'mm d-1'],  # check name
-        ############## Static Input Attributes ##############
-        'basin__area': ['uparea','km2'],
-        'land_surface_water__Hargreaves_potential_evaporation_volume_flux': ['ETPOT_Hargr', 'mm d-1'],  # check name
-        'free_land_surface_water': ['FW', 'mm d-1'],  # check name
-        'soil_clay__attr': ['HWSD_clay','percent'],  # custom name; need to confirm
-        'soil_gravel__attr': ['HWSD_gravel','percent'],  # custom name; need to confirm
-        'soil_sand__attr': ['HWSD_sand','percent'],  # custom name; need to confirm
-        'soil_silt__attr': ['HWSD_silt','percent'],   # custom name; need to confirm
-        'land_vegetation__normalized_diff_vegitation_index': ['NDVI','-'],  # custom name
-        'soil_active-layer__porosity': ['Porosity', '-'],  # check name
-        'soil_clay__grid': ['SoilGrids1km_clay','km2'],  # custom name
-        'soil_sand__grid': ['SoilGrids1km_sand','km2'],  # custom name
-        'soil_silt__grid': ['SoilGrids1km_silt','km2'],  # custom name
-        'soil_clay__volume_fraction': ['T_clay','percent'],
-        'soil_gravel__volume_fraction': ['T_gravel','percent'],
-        'soil_sand__volume_fraction': ['T_sand','percent'],
-        'soil_silt__volume_fraction': ['T_silt','percent'], 
-        'ratio__mean_potential_evapotranspiration__mean_precipitation': ['aridity','-'],
-        'land_surface_water__glacier_fraction': ['glaciers','percent'],  # custom name
-        'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['meanP','mm d-1'],
-        'atmosphere_water__daily_mean_of_temperature': ['meanTa','mm d-1'],  # custom name
-        'basin__mean_of_elevation': ['meanelevation','m'],
-        'basin__mean_of_slope': ['meanslope','m km-1'],
-        'bedrock__permeability': ['permeability','m2'],
-        'p_seasonality': ['seasonality_P', '-'],  # custom name
-        'land_surface_water__potential_evaporation_volume_flux_seasonality': ['seasonality_PET', '-'],  # custom name
-        'land_surface_water__snow_fraction': ['snow_fraction','percent'],
-        'atmosphere_water__precipitation_falling_as_snow_fraction': ['snowfall_fraction','percent'],
-        'land_surface_water__permafrost_fraction': ['permafrost', '-'],  # custom name
-    }
-
-    #-----------------------------
-    # Static input attribute names
-    #-----------------------------
-    _static_attributes_list = [
-        'uparea',
-        'ETPOT_Hargr',
-        'FW',
-        'HWSD_clay',
-        'HWSD_gravel',
-        'HWSD_sand',
-        'HWSD_silt',
-        'NDVI',
-        'Porosity',
-        'SoilGrids1km_clay',
-        'SoilGrids1km_sand',
-        'SoilGrids1km_silt',
-        'T_clay',
-        'T_gravel',
-        'T_sand',
-        'T_silt',
-        'aridity',
-        'glaciers',
-        'meanP',
-        'meanTa',
-        'meanelevation',
-        'meanslope',
-        'permeability',
-        'seasonality_P',
-        'seasonality_PET',
-        'snow_fraction',
-        'snowfall_fraction',
-        'permafrost',
-    ]
-
-    def __getattribute__(self, item: str) -> Any:
-        """
-        Customize instance attribute access.
-
-        Credit: Scott Peckham
-
-        For items corresponding to BMI input or output variables (numpy arrays)
-        and have values that are only a single-element array, deviate from the
-        standard behavior and return the single array element.
-        Fall back to default behavior otherwise.
-
-        This supports having a BMI variable be backed by a numpy array, while
-        also allowing the attribute to be used as just a scalar.
-
-        Parameters
-        ----------
-        item : str
-            The name of the attribute item to get.
-
-        Returns
-        -------
-        Any
-            The value of the named item.
-        """
-        # Have these work explicitly (or else loops)
-        if item == '_input_var_names' or item == '_output_var_names':
-            return super(BmiDHbv2, self).__getattribute__(item)
-
-        # By default, for things other than BMI variables, use normal behavior
-        if item not in super(BmiDHbv2, self).__getattribute__('_input_var_names') and item not in super(BmiDHbv2, self).__getattribute__('_output_var_names'):
-            return super(BmiDHbv2, self).__getattribute__(item)
-
-        # Return the single scalar value from any ndarray of size 1
-        value = super(BmiDHbv2, self).__getattribute__(item)
-        if isinstance(value, np.ndarray) and value.size == 1:
-            return value[0]
-        else:
-            return value
-
-    def __setattr__(self, key: str, value: Union[np.ndarray, Any]) -> None:
-        """
-        Customized instance attribute mutator functionality.
-
-        Credit: Scott Peckham
-
-        For attributes with keys indicating they are a BMI input/output variable 
-        (numpy array), wrap any scalar value as a one-element numpy array and
-        use in a nested call to the superclass implementation of this function. 
-        Otherwise, pass the key + value to a nested call.
-
-        This supports having a BMI variable be backed by a numpy array, even if
-        initialized using a scalar, while otherwise maintaining standard behavior.
-
-        Parameters
-        ----------
-        key : str
-            The name of the attribute to set.
-        value : Union[np.ndarray, Any]
-            The value to set the attribute to.
-        """
-        # Have these work explicitly (or else loops)
-        if key == '_input_var_names' or key == '_output_var_names':
-            super(BmiDHbv2, self).__setattr__(key, value)
-
-        # Pass thru if value is already an array
-        if isinstance(value, np.ndarray):
-            super(BmiDHbv2, self).__setattr__(key, value)
-        # Override to put scalars into ndarray for BMI input/output variables
-        elif key in self._input_var_names or key in self._output_var_names:
-            super(BmiDHbv2, self).__setattr__(key, np.array([value]))
-        # By default, use normal behavior
-        else:
-            super(BmiDHbv2, self).__setattr__(key, value)
-            
-
-    #------------------------------#
-    # BMI: Model Control Functions #
-    #------------------------------#
+    @staticmethod
+    def _set_vars(
+        vars: list[tuple[str, str]],
+        var_value: NDArray,
+    ) -> dict[str, dict[str, Union[NDArray, str]]]:
+        """Set the values of the given variables."""
+        var_dict = {}
+        for item in vars:
+            var_dict[item[0]] = {'value': var_value.copy(), 'units': item[1]}
+        return var_dict
     
-    def initialize(self, config_filepath: Optional[str] = None) -> None:
-        """
-        (BMI Control function) Initialize the BMI model.
+    def initialize(self, config_path: Optional[str] = None) -> None:
+        """(Control function) Initialize the BMI model.
 
         This BMI operates in two modes:
             (Necessesitated by the fact that dhBV 2.0's internal NN must forward
             on all data at once. <-- Forwarding on each timestep one-by-one with
             saving/loading hidden states would slash LSTM performance. However,
-            feeding in hidden states day-by-day leeds to great efficiency losses vs
-            simply feeding all data at once due to carrying gradients at each step.)
+            feeding in hidden states day-by-day leeds to great efficiency losses
+            vs simply feeding all data at once due to carrying gradients at each
+            step.)
 
             1) Feed all input dataBMI before
                 'bmi.initialize()'. Then internal model is forwarded on all data
                 and generates predictions during '.initialize()'.
             
             2) Run '.initialize()', then pass data day by day as normal during
-                'bmi.update()'. If forwarding period is sufficiently small (say, <100 days),
-                then forwarding LSTM on individual days with saved states is reasonable.
+                'bmi.update()'. If forwarding period is sufficiently small (say,
+                <100 days), then forwarding LSTM on individual days with saved
+                states is reasonable.
 
         To this end, a configuration file can be specified either during
         `bmi.__init__()`, or during `.initialize()`. If running BMI as type (1),
@@ -370,33 +263,60 @@ class BmiDHbv2(Bmi):
 
         Parameters
         ----------
-        config_filepath : str, optional
+        config_path
             Path to the BMI configuration file.
         """
         t_start = time.time()
 
-        if not self.config:
-            # Read in model & BMI configurations.
-            self.initialize_config(config_filepath)
+        # Read BMI configuration file if provided.
+        if config_path is not None:
+            if not Path(config_path).is_file():
+                raise FileNotFoundError(f"Configuration file not found: {config_path}")
+            with open(config_path, 'r') as f:
+                self.config_bmi = yaml.safe_load(f)
+        
+        if self.cfg_bmi is None:
+            raise ValueError("No configuration file given. A config path" \
+                             "must be passed at time of bmi init() or" \
+                             "initialize() call.")
 
-            # Create lookup tables for CSDMS variables + init variable arrays.
-            self.init_var_dicts()
+        # Load model configuration.
+        if self.config_model is None:
+            try:
+                with open(self.config_bmi.get('config_model'), 'r') as f:
+                    self.config_model = yaml.safe_load(f)
+            except Exception as e:
+                raise RuntimeError(f"Failed to load model configuration: {e}")
 
-            if not config_filepath:
-                raise ValueError("No configuration file given. A config path \
-                                 must be passed at time of bmi init or .initialize() call.")
+            self.sampler = import_data_sampler(self.config_model['data_sampler'])(self.config_model)
 
-        # Set a simulation start time and gettimestep size.
-        self.current_time = self._start_time
-        self._time_step_size = self.config['time_step_delta']
+
+        # Load static vars from BMI config into internal storage.
+        for var_name, var_value in self.config_bmi.get('static_vars', {}).items():
+            if var_name in self._static_var:
+                self._static_var[var_name]['value'] = bmi_array(var_value)
+            else:
+                log.warning(f"Static variable '{var_name}' not recognized. Skipping.")
+
+        # # Set simulation parameters.
+        self.current_time = self.config_bmi.get('start_time', 0.0)
+        # self._time_step_size = self.config_bmi.get('time_step_size', 86400)  # Default to 1 day in seconds.
+        # self._end_time = self.config_bmi.get('end_time', np.finfo('d').max)\
 
         # Load a trained model.
-        self._model = ModelHandler(self.config).to(self.config['device'])
-        self._initialized = True
+        try:
+            self._model = self._load_trained_model(self.config_model)
+            # self._model = ModelHandler(self.config_model).to(self.config_model['device'])
+            self._initialized = True
+        except Exception as e:
+            raise RuntimeError(f"Failed to load trained model: {e}")
 
-        if self.config['forward_init']:
-            # Forward model on all data in this .initialize() step.
-            self.run_forward()
+        # Forward model on all data if specified.
+        if self.config_bmi.get('forward_init', False):
+            predictions = self.run_forward()
+
+            # Process and store predictions.
+            self._process_predictions(predictions)
 
         # Track total BMI runtime.
         self.bmi_process_time += time.time() - t_start
@@ -404,17 +324,16 @@ class BmiDHbv2(Bmi):
             log.info(f"BMI initialize [ctrl fn] took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
 
     def update(self) -> None:
-        """
-        (BMI Control function) Advance model state by one time step.
-
-        Note: Models should be trained standalone with dPLHydro_PMI first before forward predictions with this BMI.
-        """
+        """(Control function) Advance model state by one time step."""
         t_start = time.time()
         self.current_time += self._time_step_size 
         
-        if not self.config['forward_init']:
-            # Conventional forward pass during .update()
-            self.run_forward()
+        # Forward model on individual timesteps if not initialized with forward_init.
+        if not self.config_bmi.get('forward_init', False):
+            predictions = self.run_forward()
+
+            # Process and store predictions.
+            self._process_predictions(predictions)
 
         # Track total BMI runtime.
         self.bmi_process_time += time.time() - t_start
@@ -422,40 +341,80 @@ class BmiDHbv2(Bmi):
             log.info(f"BMI update [ctrl fn] took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
     
     def run_forward(self):
-        """
-        Forward model and save outputs to return on update call.
-        """
-        # Format inputs
-        self._values_to_dict()
+        """Forward model and save outputs to return on update call."""
+        data_dict = self._format_inputs()
 
-        ngrid = self.dataset_dict['inputs_nn_scaled'].shape[1]
-        i_start = np.arange(0, ngrid, self.config['batch_basins'])
-        i_end = np.append(i_start[1:], ngrid)
+        n_samples = self.dataset['xc_nn_norm'].shape[1]
+        batch_start = np.arange(0, n_samples, self.config_model['predict']['batch_size'])
+        batch_end = np.append(batch_start[1:], n_samples)
         
-        batched_preds_list = []
+        batch_predictions = []
         # Forward through basins in batches.
-        for i in range(len(i_start)):
-            dataset_dict_sample = self._get_batch_sample(self.config, self.dataset_dict,
-                                               i_start[i], i_end[i])
+        with torch.no_grad():
+            for i in range(len(batch_start)):
+                dataset_sample = self.sampler.get_validation_sample(
+                    data_dict,
+                    batch_start[i],
+                    batch_end[i],
+                )
 
-            # TODO: Include architecture here for saving/loading states of hydro
-            # model and pNN for single timestep updates.
+                # Forward dPLHydro model
+                self.prediction = self._model.forward(dataset_sample, eval=True)
 
-            # Forward dPLHydro model
-            self.preds = self._model.forward(dataset_dict_sample, eval=True)
-
-            # For single hydrology model.
-            model_name = self.config['hydro_models'][0]
-            batched_preds_list.append({key: tensor.cpu().detach() for key,
-                                        tensor in self.preds[model_name].items()})
+                # For single hydrology model.
+                model_name = self.config_model['dpl_model']['phy_model']['model'][0]
+                prediction = {
+                    key: tensor.cpu().detach() for key, tensor in prediction[model_name].items()
+                }
+                batch_predictions.append(prediction)
         
-        # TODO: Expand list of supported outputs (e.g., a dict of output vars).
-        preds = torch.cat([d['flow_sim'] for d in batched_preds_list], dim=1)
-        preds = preds.numpy()
+        return self._batch_data(batch_predictions)
 
-        # Scale and check output
-        self.scale_output()
+        # preds = torch.cat([d['flow_sim'] for d in batched_preds_list], dim=1)
+        # preds = preds.numpy()
 
+        # # Scale and check output
+        # self.scale_output()
+
+    def _process_predictions(self, predictions):
+        """Process model predictions and store them in output variables."""
+        for var_name, prediction in predictions.items():
+            if var_name in self._output_vars:
+                self._output_vars[var_name]['value'] = prediction.cpu().numpy()
+            else:
+                log.warning(f"Output variable '{var_name}' not recognized. Skipping.")
+
+    def _format_inputs(self):
+        """Format dynamic and static inputs for the model."""
+        inputs = {}
+        for var_name, var_info in self._dynamic_var.items():
+            inputs[var_name] = var_info['value']
+        for var_name, var_info in self._static_var.items():
+            inputs[var_name] = var_info['value']
+        return inputs
+    
+    def _batch_data(
+        self,
+        batch_list: list[dict[str, torch.Tensor]],
+        target_key: str = None,
+    ) -> None:
+        """Merge list of batch data dictionaries into a single dictionary."""
+        data = {}
+        try:
+            if target_key:
+                return torch.cat([x[target_key] for x in batch_list], dim=1).numpy()
+
+            for key in batch_list[0].keys():
+                if len(batch_list[0][key].shape) == 3:
+                    dim = 1
+                else:
+                    dim = 0
+                data[key] = torch.cat([d[key] for d in batch_list], dim=dim).cpu().numpy()
+            return data
+        
+        except ValueError as e:
+            raise ValueError(f"Error concatenating batch data: {e}") from e
+        
     def update_frac(self, time_frac: float) -> None:
         """
         Update model by a fraction of a time step.
@@ -473,9 +432,10 @@ class BmiDHbv2(Bmi):
         self._time_step_size = time_step
 
     def update_until(self, end_time: float) -> None:
-        """
-        (BMI Control function) Update model until a particular time.
-        Note: Models should be trained standalone with dPLHydro_PMI first before forward predictions with this BMI.
+        """(Control function) Update model until a particular time.
+
+        Note: Models should be trained standalone with dPLHydro_PMI first before
+        forward predictions with this BMI.
 
         Parameters
         ----------
@@ -496,14 +456,13 @@ class BmiDHbv2(Bmi):
             log.info(f"BMI update_until [ctrl fn] took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
 
     def finalize(self) -> None:
-        """
-        (BMI Control function) Finalize model.
-        """
-        # TODO: Force destruction of ESMF and other objects when testing is done
-        # to save space.
-        
-        torch.cuda.empty_cache()
-        self._model = None
+        """(Control function) Finalize model."""
+        if self._model is not None:
+            del self._model
+            torch.cuda.empty_cache()
+        self._initialized = False
+        if self.verbose:
+            log.info("BMI model finalized.")
 
     def array_to_tensor(self) -> None:
         """
@@ -532,7 +491,7 @@ class BmiDHbv2(Bmi):
         Data type of variable.
 
         Parameters
-        ----------
+        ----------g
         var_name : str
             Name of variable as CSDMS Standard Name.
 
@@ -597,12 +556,12 @@ class BmiDHbv2(Bmi):
         #         return grid_id
         raise NotImplementedError("get_var_grid")
 
-    def get_grid_rank(self, grid_id):
+    def get_grid_rank(self, grid_id: int):
         """Rank of grid.
 
         Parameters
         ----------
-        grid_id : int
+        grid_id
             Identifier of a grid.
 
         Returns
@@ -610,8 +569,9 @@ class BmiDHbv2(Bmi):
         int
             Rank of grid.
         """
-        # return len(self._model.shape)
-        raise NotImplementedError("get_grid_rank")
+        if grid_id == 0:
+            return 1
+        raise ValueError(f"Unsupported grid rank: {grid_id!s}. only support 0")
 
     def get_grid_size(self, grid_id):
         """Size of grid.
@@ -800,19 +760,6 @@ class BmiDHbv2(Bmi):
         raise NotImplementedError("get_grid_face_nodes")
 
     def get_grid_node_count(self, grid):
-        """Number of grid nodes.
-
-        Parameters
-        ----------
-        grid : int
-            Identifier of a grid.
-
-        Returns
-        -------
-        int
-            Size of grid.
-        """
-        # return self.get_grid_size(grid)
         raise NotImplementedError("get_grid_node_count")
 
     def get_grid_nodes_per_face(self, grid, nodes_per_face):
@@ -857,117 +804,117 @@ class BmiDHbv2(Bmi):
         #     raise e
         # return config, config_dict
 
-    def init_var_dicts(self):
-        """
-        Create lookup tables for CSDMS variables and init variable arrays.
-        """
-        # Make lookup tables for variable name (Peckham et al.).
-        self._var_name_map_long_first = {
-            long_name:self._var_name_units_map[long_name][0] for \
-            long_name in self._var_name_units_map.keys()
-            }
-        self._var_name_map_short_first = {
-            self._var_name_units_map[long_name][0]:long_name for \
-            long_name in self._var_name_units_map.keys()}
-        self._var_units_map = {
-            long_name:self._var_name_units_map[long_name][1] for \
-            long_name in self._var_name_units_map.keys()
-        }
+    # def init_var_dicts(self):
+    #     """
+    #     Create lookup tables for CSDMS variables and init variable arrays.
+    #     """
+    #     # Make lookup tables for variable name (Peckham et al.).
+    #     self._var_name_map_long_first = {
+    #         long_name:self._var_name_units_map[long_name][0] for \
+    #         long_name in self._var_name_units_map.keys()
+    #         }
+    #     self._var_name_map_short_first = {
+    #         self._var_name_units_map[long_name][0]:long_name for \
+    #         long_name in self._var_name_units_map.keys()}
+    #     self._var_units_map = {
+    #         long_name:self._var_name_units_map[long_name][1] for \
+    #         long_name in self._var_name_units_map.keys()
+    #     }
 
-        # Initialize inputs and outputs.
-        for var in self.config['observations']['var_t_nn'] + self.config['observations']['var_c_nn']:
-            standard_name = self._var_name_map_short_first[var]
-            self._nn_values[standard_name] = []
-            # setattr(self, var, 0)
+    #     # Initialize inputs and outputs.
+    #     for var in self.config['observations']['var_t_nn'] + self.config['observations']['var_c_nn']:
+    #         standard_name = self._var_name_map_short_first[var]
+    #         self._nn_values[standard_name] = []
+    #         # setattr(self, var, 0)
 
-        for var in self.config['observations']['var_t_hydro_model'] + self.config['observations']['var_c_hydro_model']:
-            standard_name = self._var_name_map_short_first[var]
-            self._pm_values[standard_name] = []
-            # setattr(self, var, 0)
+    #     for var in self.config['observations']['var_t_hydro_model'] + self.config['observations']['var_c_hydro_model']:
+    #         standard_name = self._var_name_map_short_first[var]
+    #         self._pm_values[standard_name] = []
+    #         # setattr(self, var, 0)
 
-    def scale_output(self) -> None:
-        """
-        Scale and return more meaningful output from wrapped model.
-        """
-        models = self.config['hydro_models'][0]
+    # def scale_output(self) -> None:
+    #     """
+    #     Scale and return more meaningful output from wrapped model.
+    #     """
+    #     models = self.config['hydro_models'][0]
 
-        # TODO: still have to finish finding and undoing scaling applied before
-        # model run. (See some checks used in bmi_lstm.py.)
+    #     # TODO: still have to finish finding and undoing scaling applied before
+    #     # model run. (See some checks used in bmi_lstm.py.)
 
-        # Strip unnecessary time and variable dims. This gives 1D array of flow
-        # at each basin.
-        # TODO: setup properly for multiple models later.
-        self.streamflow_cms = self.preds[models]['flow_sim'].squeeze()
+    #     # Strip unnecessary time and variable dims. This gives 1D array of flow
+    #     # at each basin.
+    #     # TODO: setup properly for multiple models later.
+    #     self.streamflow_cms = self.preds[models]['flow_sim'].squeeze()
 
-    def _get_batch_sample(self, config: Dict, dataset_dictionary: Dict[str, torch.Tensor], 
-                        i_s: int, i_e: int) -> Dict[str, torch.Tensor]:
-        """
-        Take sample of data for testing batch.
-        """
-        dataset_sample = {}
-        for key, value in dataset_dictionary.items():
-            if value.ndim == 3:
-                # TODO: I don't think we actually need this.
-                # Remove the warmup period for all except airtemp_memory and hydro inputs.
-                if key in ['airT_mem_temp_model', 'x_phy', 'inputs_nn_scaled']:
-                    warm_up = 0
-                else:
-                    warm_up = config['warm_up']
-                dataset_sample[key] = value[warm_up:, i_s:i_e, :].to(config['device'])
-            elif value.ndim == 2:
-                dataset_sample[key] = value[i_s:i_e, :].to(config['device'])
-            else:
-                raise ValueError(f"Incorrect input dimensions. {key} array must have 2 or 3 dimensions.")
-        return dataset_sample
+    # def _get_batch_sample(self, config: Dict, dataset_dictionary: Dict[str, torch.Tensor], 
+    #                     i_s: int, i_e: int) -> Dict[str, torch.Tensor]:
+    #     """
+    #     Take sample of data for testing batch.
+    #     """
+    #     dataset_sample = {}
+    #     for key, value in dataset_dictionary.items():
+    #         if value.ndim == 3:
+    #             # TODO: I don't think we actually need this.
+    #             # Remove the warmup period for all except airtemp_memory and hydro inputs.
+    #             if key in ['airT_mem_temp_model', 'x_phy', 'inputs_nn_scaled']:
+    #                 warm_up = 0
+    #             else:
+    #                 warm_up = config['warm_up']
+    #             dataset_sample[key] = value[warm_up:, i_s:i_e, :].to(config['device'])
+    #         elif value.ndim == 2:
+    #             dataset_sample[key] = value[i_s:i_e, :].to(config['device'])
+    #         else:
+    #             raise ValueError(f"Incorrect input dimensions. {key} array must have 2 or 3 dimensions.")
+    #     return dataset_sample
 
-    def _values_to_dict(self) -> None:
-        """
-        Take CSDMS Standard Name-mapped forcings + attributes and construct data
-        dictionary for NN and physics model.
-        """
-        # n_basins = self.config['batch_basins']
-        n_basins = 671
-        rho = self.config['rho']
+    # def _values_to_dict(self) -> None:
+    #     """
+    #     Take CSDMS Standard Name-mapped forcings + attributes and construct data
+    #     dictionary for NN and physics model.
+    #     """
+    #     # n_basins = self.config['batch_basins']
+    #     n_basins = 671
+    #     rho = self.config['rho']
 
-        # Initialize dict arrays.
-        # NOTE: used to have rho+1 here but this is no longer necessary?
-        x_nn = np.zeros((rho + 1, n_basins, len(self.config['observations']['var_t_nn'])))
-        c_nn = np.zeros((rho + 1, n_basins, len(self.config['observations']['var_c_nn'])))
-        x_phy = np.zeros((rho + 1, n_basins, len(self.config['observations']['var_t_hydro_model'])))
-        c_hydro_model = np.zeros((n_basins, len(self.config['observations']['var_c_hydro_model'])))
+    #     # Initialize dict arrays.
+    #     # NOTE: used to have rho+1 here but this is no longer necessary?
+    #     x_nn = np.zeros((rho + 1, n_basins, len(self.config['observations']['var_t_nn'])))
+    #     c_nn = np.zeros((rho + 1, n_basins, len(self.config['observations']['var_c_nn'])))
+    #     x_phy = np.zeros((rho + 1, n_basins, len(self.config['observations']['var_t_hydro_model'])))
+    #     c_hydro_model = np.zeros((n_basins, len(self.config['observations']['var_c_hydro_model'])))
 
-        for i, var in enumerate(self.config['observations']['var_t_nn']):
-            standard_name = self._var_name_map_short_first[var]
-            # NOTE: Using _values is a bit hacky. Should use get_values I think.    
-            x_nn[:, :, i] = np.array([self._nn_values[standard_name]])
+    #     for i, var in enumerate(self.config['observations']['var_t_nn']):
+    #         standard_name = self._var_name_map_short_first[var]
+    #         # NOTE: Using _values is a bit hacky. Should use get_values I think.    
+    #         x_nn[:, :, i] = np.array([self._nn_values[standard_name]])
         
-        for i, var in enumerate(self.config['observations']['var_c_nn']):
-            standard_name = self._var_name_map_short_first[var]
-            c_nn[:, :, i] = np.array([self._nn_values[standard_name]])
+    #     for i, var in enumerate(self.config['observations']['var_c_nn']):
+    #         standard_name = self._var_name_map_short_first[var]
+    #         c_nn[:, :, i] = np.array([self._nn_values[standard_name]])
 
-        for i, var in enumerate(self.config['observations']['var_t_hydro_model']):
-            standard_name = self._var_name_map_short_first[var]
-            x_phy[:, :, i] = np.array([self._pm_values[standard_name]])
+    #     for i, var in enumerate(self.config['observations']['var_t_hydro_model']):
+    #         standard_name = self._var_name_map_short_first[var]
+    #         x_phy[:, :, i] = np.array([self._pm_values[standard_name]])
 
-        for i, var in enumerate(self.config['observations']['var_c_hydro_model']):
-            standard_name = self._var_name_map_short_first[var]
-            c_hydro_model[:, i] = np.array([self._pm_values[standard_name]])
+    #     for i, var in enumerate(self.config['observations']['var_c_hydro_model']):
+    #         standard_name = self._var_name_map_short_first[var]
+    #         c_hydro_model[:, i] = np.array([self._pm_values[standard_name]])
         
-        self.dataset_dict = {
-            'inputs_nn_scaled': np.concatenate((x_nn, c_nn), axis=2), #[np.newaxis,:,:],
-            'x_phy': x_phy, #[np.newaxis,:,:],
-            'c_hydro_model': c_hydro_model
-        }
-        print(self.dataset_dict['inputs_nn_scaled'].shape)
+    #     self.dataset_dict = {
+    #         'inputs_nn_scaled': np.concatenate((x_nn, c_nn), axis=2), #[np.newaxis,:,:],
+    #         'x_phy': x_phy, #[np.newaxis,:,:],
+    #         'c_hydro_model': c_hydro_model
+    #     }
+    #     print(self.dataset_dict['inputs_nn_scaled'].shape)
 
-        # Convert to torch tensors:
-        for key in self.dataset_dict.keys():
-            if type(self.dataset_dict[key]) == np.ndarray:
-                self.dataset_dict[key] = torch.from_numpy(self.dataset_dict[key]).float() #.to(self.config['device'])
+    #     # Convert to torch tensors:
+    #     for key in self.dataset_dict.keys():
+    #         if type(self.dataset_dict[key]) == np.ndarray:
+    #             self.dataset_dict[key] = torch.from_numpy(self.dataset_dict[key]).float() #.to(self.config['device'])
 
-    def get_csdms_name(self, var_name):
-        """
-        Get CSDMS Standard Name from variable name.
-        """
-        return self._var_name_map_long_first[var_name]
+    # def get_csdms_name(self, var_name):
+    #     """
+    #     Get CSDMS Standard Name from variable name.
+    #     """
+    #     return self._var_name_map_long_first[var_name]
     
