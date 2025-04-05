@@ -16,7 +16,7 @@ import yaml
 from bmipy import Bmi
 # from dMG.conf import config
 # from dMG.core.data import take_sample_test
-from dMG import ModelHandler, import_data_sampler
+from dMG import ModelHandler, import_data_sampler, utils
 from omegaconf import DictConfig, OmegaConf
 from pydantic import ValidationError
 # from ruamel.yaml import YAML
@@ -212,10 +212,7 @@ class deltaModelBmi(Bmi):
                     self.config_model = yaml.safe_load(f)
             except Exception as e:
                 raise RuntimeError(f"Failed to load model configuration: {e}")
-        
-            self.sampler = import_data_sampler(self.config_model['data_sampler'])(self.config_model)
 
-                    
         # Initialize variables.
         self._dynamic_var = self._set_vars(_dynamic_input_vars, bmi_array([0.0]))
         self._static_var = self._set_vars(_static_input_vars, bmi_array([0.0]))
@@ -275,7 +272,7 @@ class deltaModelBmi(Bmi):
             with open(config_path, 'r') as f:
                 self.config_bmi = yaml.safe_load(f)
         
-        if self.cfg_bmi is None:
+        if self.config_bmi is None:
             raise ValueError("No configuration file given. A config path" \
                              "must be passed at time of bmi init() or" \
                              "initialize() call.")
@@ -287,16 +284,19 @@ class deltaModelBmi(Bmi):
                     self.config_model = yaml.safe_load(f)
             except Exception as e:
                 raise RuntimeError(f"Failed to load model configuration: {e}")
+        
+        self.config_model = utils.initialize_config(self.config_model)
+        self.device = self.config_model['device']
+        self.internal_dtype = self.config_model['dtype']
+        self.external_dtype = eval(self.config_bmi['dtype'])
+        self.sampler = import_data_sampler(self.config_model['data_sampler'])(self.config_model)
 
-            self.sampler = import_data_sampler(self.config_model['data_sampler'])(self.config_model)
-
-
-        # Load static vars from BMI config into internal storage.
-        for var_name, var_value in self.config_bmi.get('static_vars', {}).items():
-            if var_name in self._static_var:
-                self._static_var[var_name]['value'] = bmi_array(var_value)
+        # Load static variables from BMI conf
+        for name in self._static_var.keys():
+            if name in self.config_bmi.keys():
+                self._static_var[name]['value'] = bmi_array(self.config_bmi['name'])
             else:
-                log.warning(f"Static variable '{var_name}' not recognized. Skipping.")
+                log.warning(f"Static variable '{name}' not in BMI config. Skipping.")
 
         # # Set simulation parameters.
         self.current_time = self.config_bmi.get('start_time', 0.0)
@@ -305,24 +305,33 @@ class deltaModelBmi(Bmi):
 
         # Load a trained model.
         try:
-            self._model = self._load_trained_model(self.config_model)
-            # self._model = ModelHandler(self.config_model).to(self.config_model['device'])
+            self._model = self._load_trained_model(self.config_model).to(self.device)
             self._initialized = True
         except Exception as e:
             raise RuntimeError(f"Failed to load trained model: {e}")
 
-        # Forward model on all data if specified.
-        if self.config_bmi.get('forward_init', False):
+        # Forward simulation on all data in one go.
+        if not self.config_bmi.get('stepwise', True):
             predictions = self.run_forward()
 
-            # Process and store predictions.
-            self._process_predictions(predictions)
+        #     # Process and store predictions.
+        #     self._process_predictions(predictions)
 
-        # Track total BMI runtime.
-        self.bmi_process_time += time.time() - t_start
-        if self.verbose:
-            log.info(f"BMI initialize [ctrl fn] took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
+        # # Track total BMI runtime.
+        # self.bmi_process_time += time.time() - t_start
+        # if self.verbose:
+        #     log.info(f"BMI initialize [ctrl fn] took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
 
+    @staticmethod
+    def _load_trained_model(config: dict):
+        """Load a pre-trained model based on the configuration."""
+        model_path = config.get('model_path')
+        if not model_path:
+            raise ValueError("No model path specified in configuration.")
+        if not Path(model_path).exists():
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        return ModelHandler(config, verbose=True)
+    
     def update(self) -> None:
         """(Control function) Advance model state by one time step."""
         t_start = time.time()
@@ -777,7 +786,7 @@ class deltaModelBmi(Bmi):
     def get_grid_z(self, grid, z):
         raise NotImplementedError("get_grid_z")
 
-    def initialize_config(self, config_path: str) -> Dict:
+    def initialize_config(self, config_path: str) -> dict:
         """
         Check that config_path is valid path and convert config into a
         dictionary object.

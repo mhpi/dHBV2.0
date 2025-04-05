@@ -1,12 +1,6 @@
 # This configuration file is specifically for the high-resolution, differentiable, hydrologic model, dHBV2.0UH, from Song et al., 2024. If you find this code is useful to your work, please cite this paper below:
 # Yalan Song, Tadd Bindas, Chaopeng Shen, et al. High-resolution national-scale water modeling is enhanced by multiscale differentiable physics-informed machine learning. ESS Open Archive. 26 September 2024. https://doi.org/10.22541/essoar.172736277.74497104/v1.
 
-defaults:
-    - _self_
-    - hydra: settings
-    - observations: merit_forward
-
-
 ## General -------------------------------#
 mode: predict
 random_seed: 111111
@@ -18,7 +12,7 @@ data_sampler: MsHydroSampler
 trainer: MsTrainer
 
 save_path: .
-trained_model: dHBV_2_0_Ep100.pt  # The trained dHBV 2.0 model (+ input data) can be downloaded from: https://pennstateoffice365-my.sharepoint.com/:f:/g/personal/cxs1024_psu_edu/Eqi1NuJ3d2pMpEJpVu0EGSoBigi-VCWVHgOYIRoTeuGiOw?e=HaNNeA
+trained_model: dHBV_2_0\trained_models\merit_conus_40yr\dHBV_2_0_Ep100.pt  # The trained dHBV 2.0 model (+ input data) can be downloaded from: https://pennstateoffice365-my.sharepoint.com/:f:/g/personal/cxs1024_psu_edu/Eqi1NuJ3d2pMpEJpVu0EGSoBigi-VCWVHgOYIRoTeuGiOw?e=HaNNeA
 
 
 ## Training ------------------------------#
@@ -132,3 +126,9 @@ dpl_model:
             snowfall_fraction,
             uparea,
         ]
+
+# NOTE: needed until either config init is ported from dMG, or this is dynamically added by the BMI.
+observations:
+    name: merit_forward
+    start_time: 1980/01/01
+    end_time: 2020/12/31

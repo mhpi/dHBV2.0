@@ -1005,3 +1005,11 @@ def coerce_config(cfg: dict[str, typing.Any]):
                 cfg[key] = temp_list
             else:
                 cfg[key] = pd.to_datetime(val, format="%d/%m/%Y")
+
+
+
+def load_static_attributes(cfg: dict[str, Any], var_dict: dict[str, dict[str, Union[NDArray, str]]]) -> None:
+    for external_name in self.names():
+        internal_name = crosswalk_to_interal(external_name)
+        value = cfg[internal_name]
+        state.set_value(external_name, bmi_array([value]))
