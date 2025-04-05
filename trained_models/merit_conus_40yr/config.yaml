@@ -12,7 +12,7 @@ data_sampler: MsHydroSampler
 trainer: MsTrainer
 
 save_path: .
-trained_model: dHBV_2_0\trained_models\merit_conus_40yr\dHBV_2_0_Ep100.pt  # The trained dHBV 2.0 model (+ input data) can be downloaded from: https://pennstateoffice365-my.sharepoint.com/:f:/g/personal/cxs1024_psu_edu/Eqi1NuJ3d2pMpEJpVu0EGSoBigi-VCWVHgOYIRoTeuGiOw?e=HaNNeA
+trained_model: trained_models/merit_conus_40yr/dHBV_2_0_Ep100.pt  # The trained dHBV 2.0 model (+ input data) can be downloaded from: https://pennstateoffice365-my.sharepoint.com/:f:/g/personal/cxs1024_psu_edu/Eqi1NuJ3d2pMpEJpVu0EGSoBigi-VCWVHgOYIRoTeuGiOw?e=HaNNeA
 
 
 ## Training ------------------------------#
@@ -58,7 +58,7 @@ dpl_model:
         # HBV 2.0 (HBV_2_0): Yalan Song, Tadd Bindas, Chaopeng Shen, et al. High-resolution national-scale water modeling is enhanced by multiscale differentiable physics-informed machine learning. ESS Open Archive. September 26, 2024. https://doi.org/10.22541/essoar.172736277.74497104/v1.
 
         model: [HBV_2_0]
-        nmul: 4
+        nmul: 2
         warm_up: 0
         warm_up_states: True
         dy_drop: 0.0

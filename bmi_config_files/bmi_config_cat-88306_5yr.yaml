@@ -32,10 +32,10 @@ snow_fraction: 0.02967
 aridity: 1.041
 NDVI: 0.594
 
-config_model: dHBV_2_0/trained_models/merit_conus_40yr/config.yaml
+config_model: trained_models/merit_conus_40yr/config.yaml
 stepwise: False  # True: stepwise inference, False: Single forward simulation on all data in one go
 initial_state: zero  # zero: set initial states of the model to zero
-dtype: float32
+dtype: np.float32
 verbose: 1  # 0: no output, 1: print output
 
 # Simulation window

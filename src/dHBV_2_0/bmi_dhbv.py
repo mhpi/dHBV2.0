@@ -25,6 +25,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+
 
 # -------------------------------------------- #
 # Dynamic input variables (CSDMS standard names)
@@ -130,22 +133,24 @@ def map_to_internal(name: str):
     return _var_name_external_map[name]
 
 
+def bmi_array(arr: list[float]) -> NDArray:
+    """Trivial wrapper function to ensure the expected numpy array datatype is used."""
+    return np.array(arr, dtype="float64")
 
 
-################################################################################
-################################################################################
+
+#==============================================================================#
+#==============================================================================#
+#==============================================================================#
 
 
 # MAIN BMI >>>>
 
 
-################################################################################
-################################################################################
+#==============================================================================#
+#==============================================================================#
+#==============================================================================#
 
-
-def bmi_array(arr: list[float]) -> NDArray:
-    """Trivial wrapper function to ensure the expected numpy array datatype is used."""
-    return np.array(arr, dtype="float64")
 
 
 class deltaModelBmi(Bmi):
@@ -206,17 +211,21 @@ class deltaModelBmi(Bmi):
                 raise FileNotFoundError(f"Configuration file not found: {config_path}")
             with open(config_path, 'r') as f:
                 self.config_bmi = yaml.safe_load(f)
+            self.stepwise = self.config_bmi.get('stepwise', True)
             
             try:
-                with open(self.config_bmi.get('config_model'), 'r') as f:
+                model_config_path = os.path.join(
+                    script_dir, '..', '..', self.config_bmi.get('config_model')
+                )
+                with open(model_config_path, 'r') as f:
                     self.config_model = yaml.safe_load(f)
             except Exception as e:
                 raise RuntimeError(f"Failed to load model configuration: {e}")
 
         # Initialize variables.
-        self._dynamic_var = self._set_vars(_dynamic_input_vars, bmi_array([0.0]))
-        self._static_var = self._set_vars(_static_input_vars, bmi_array([0.0]))
-        self._output_vars = self._set_vars(_output_vars, bmi_array([0.0]))
+        self._dynamic_var = self._set_vars(_dynamic_input_vars, bmi_array([]))
+        self._static_var = self._set_vars(_static_input_vars, bmi_array([]))
+        self._output_vars = self._set_vars(_output_vars, bmi_array([]))
 
         # Track total BMI runtime.
         self.bmi_process_time += time.time() - t_start
@@ -271,7 +280,8 @@ class deltaModelBmi(Bmi):
                 raise FileNotFoundError(f"Configuration file not found: {config_path}")
             with open(config_path, 'r') as f:
                 self.config_bmi = yaml.safe_load(f)
-        
+            self.stepwise = self.config_bmi.get('stepwise', True)
+
         if self.config_bmi is None:
             raise ValueError("No configuration file given. A config path" \
                              "must be passed at time of bmi init() or" \
@@ -280,12 +290,18 @@ class deltaModelBmi(Bmi):
         # Load model configuration.
         if self.config_model is None:
             try:
-                with open(self.config_bmi.get('config_model'), 'r') as f:
+                model_config_path = os.path.join(
+                    script_dir, '..', '..', self.config_bmi.get('config_model')
+                )
+                with open(model_config_path, 'r') as f:
                     self.config_model = yaml.safe_load(f)
             except Exception as e:
                 raise RuntimeError(f"Failed to load model configuration: {e}")
         
         self.config_model = utils.initialize_config(self.config_model)
+        self.config_model['model_path'] = os.path.join(
+            script_dir, '..', '..', self.config_model.get('trained_model')
+        )
         self.device = self.config_model['device']
         self.internal_dtype = self.config_model['dtype']
         self.external_dtype = eval(self.config_bmi['dtype'])
@@ -293,8 +309,9 @@ class deltaModelBmi(Bmi):
 
         # Load static variables from BMI conf
         for name in self._static_var.keys():
-            if name in self.config_bmi.keys():
-                self._static_var[name]['value'] = bmi_array(self.config_bmi['name'])
+            ext_name = map_to_internal(name)
+            if ext_name in self.config_bmi.keys():
+                self._static_var[name]['value'] = bmi_array(self.config_bmi[ext_name])
             else:
                 log.warning(f"Static variable '{name}' not in BMI config. Skipping.")
 
@@ -309,136 +326,33 @@ class deltaModelBmi(Bmi):
             self._initialized = True
         except Exception as e:
             raise RuntimeError(f"Failed to load trained model: {e}")
-
+        
         # Forward simulation on all data in one go.
-        if not self.config_bmi.get('stepwise', True):
-            predictions = self.run_forward()
+        if not self.stepwise:
+            predictions = self._do_forward()
 
         #     # Process and store predictions.
         #     self._process_predictions(predictions)
 
-        # # Track total BMI runtime.
-        # self.bmi_process_time += time.time() - t_start
-        # if self.verbose:
-        #     log.info(f"BMI initialize [ctrl fn] took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
+        # Track total BMI runtime.
+        self.bmi_process_time += time.time() - t_start
+        if self.verbose:
+            log.info(f"BMI initialize [ctrl fn] took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
 
-    @staticmethod
-    def _load_trained_model(config: dict):
-        """Load a pre-trained model based on the configuration."""
-        model_path = config.get('model_path')
-        if not model_path:
-            raise ValueError("No model path specified in configuration.")
-        if not Path(model_path).exists():
-            raise FileNotFoundError(f"Model file not found: {model_path}")
-        return ModelHandler(config, verbose=True)
-    
     def update(self) -> None:
         """(Control function) Advance model state by one time step."""
         t_start = time.time()
         self.current_time += self._time_step_size 
         
         # Forward model on individual timesteps if not initialized with forward_init.
-        if not self.config_bmi.get('forward_init', False):
-            predictions = self.run_forward()
-
-            # Process and store predictions.
+        if self.stepwise:
+            predictions = self._do_forward()
             self._process_predictions(predictions)
 
         # Track total BMI runtime.
         self.bmi_process_time += time.time() - t_start
         if self.verbose:
             log.info(f"BMI update [ctrl fn] took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
-    
-    def run_forward(self):
-        """Forward model and save outputs to return on update call."""
-        data_dict = self._format_inputs()
-
-        n_samples = self.dataset['xc_nn_norm'].shape[1]
-        batch_start = np.arange(0, n_samples, self.config_model['predict']['batch_size'])
-        batch_end = np.append(batch_start[1:], n_samples)
-        
-        batch_predictions = []
-        # Forward through basins in batches.
-        with torch.no_grad():
-            for i in range(len(batch_start)):
-                dataset_sample = self.sampler.get_validation_sample(
-                    data_dict,
-                    batch_start[i],
-                    batch_end[i],
-                )
-
-                # Forward dPLHydro model
-                self.prediction = self._model.forward(dataset_sample, eval=True)
-
-                # For single hydrology model.
-                model_name = self.config_model['dpl_model']['phy_model']['model'][0]
-                prediction = {
-                    key: tensor.cpu().detach() for key, tensor in prediction[model_name].items()
-                }
-                batch_predictions.append(prediction)
-        
-        return self._batch_data(batch_predictions)
-
-        # preds = torch.cat([d['flow_sim'] for d in batched_preds_list], dim=1)
-        # preds = preds.numpy()
-
-        # # Scale and check output
-        # self.scale_output()
-
-    def _process_predictions(self, predictions):
-        """Process model predictions and store them in output variables."""
-        for var_name, prediction in predictions.items():
-            if var_name in self._output_vars:
-                self._output_vars[var_name]['value'] = prediction.cpu().numpy()
-            else:
-                log.warning(f"Output variable '{var_name}' not recognized. Skipping.")
-
-    def _format_inputs(self):
-        """Format dynamic and static inputs for the model."""
-        inputs = {}
-        for var_name, var_info in self._dynamic_var.items():
-            inputs[var_name] = var_info['value']
-        for var_name, var_info in self._static_var.items():
-            inputs[var_name] = var_info['value']
-        return inputs
-    
-    def _batch_data(
-        self,
-        batch_list: list[dict[str, torch.Tensor]],
-        target_key: str = None,
-    ) -> None:
-        """Merge list of batch data dictionaries into a single dictionary."""
-        data = {}
-        try:
-            if target_key:
-                return torch.cat([x[target_key] for x in batch_list], dim=1).numpy()
-
-            for key in batch_list[0].keys():
-                if len(batch_list[0][key].shape) == 3:
-                    dim = 1
-                else:
-                    dim = 0
-                data[key] = torch.cat([d[key] for d in batch_list], dim=dim).cpu().numpy()
-            return data
-        
-        except ValueError as e:
-            raise ValueError(f"Error concatenating batch data: {e}") from e
-        
-    def update_frac(self, time_frac: float) -> None:
-        """
-        Update model by a fraction of a time step.
-        
-        Parameters
-        ----------
-        time_frac : float
-            Fraction fo a time step.
-        """
-        if self.verbose:
-            print("Warning: This model is trained to make predictions on one day timesteps.")
-        time_step = self.get_time_step()
-        self._time_step_size = self._time_step_size * time_frac
-        self.update()
-        self._time_step_size = time_step
 
     def update_until(self, end_time: float) -> None:
         """(Control function) Update model until a particular time.
@@ -473,6 +387,122 @@ class deltaModelBmi(Bmi):
         if self.verbose:
             log.info("BMI model finalized.")
 
+
+
+#==============================================================================#
+#==============================================================================#
+
+        # Helper functions for BMI
+
+#==============================================================================#
+#==============================================================================#
+
+
+
+    def _do_forward(self):
+        """Forward model and save outputs to return on update call."""
+        data_dict = self._format_inputs()
+
+        n_samples = data_dict['xc_nn_norm'].shape[1]
+        batch_start = np.arange(0, n_samples, self.config_model['predict']['batch_size'])
+        batch_end = np.append(batch_start[1:], n_samples)
+        
+        batch_predictions = []
+        # Forward through basins in batches.
+        with torch.no_grad():
+            for i in range(len(batch_start)):
+                dataset_sample = self.sampler.get_validation_sample(
+                    data_dict,
+                    batch_start[i],
+                    batch_end[i],
+                )
+
+                # Forward dPLHydro model
+                self.prediction = self._model.forward(dataset_sample, eval=True)
+
+                # For single hydrology model.
+                model_name = self.config_model['dpl_model']['phy_model']['model'][0]
+                prediction = {
+                    key: tensor.cpu().detach() for key, tensor in prediction[model_name].items()
+                }
+                batch_predictions.append(prediction)
+        
+        return self._batch_data(batch_predictions)
+
+        # preds = torch.cat([d['flow_sim'] for d in batched_preds_list], dim=1)
+        # preds = preds.numpy()
+
+        # # Scale and check output
+        # self.scale_output()
+
+    @staticmethod
+    def _load_trained_model(config: dict):
+        """Load a pre-trained model based on the configuration."""
+        model_path = config.get('model_path')
+        if not model_path:
+            raise ValueError("No model path specified in configuration.")
+        if not Path(model_path).exists():
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        return ModelHandler(config, verbose=True)
+    
+    def update_frac(self, time_frac: float) -> None:
+        """
+        Update model by a fraction of a time step.
+        
+        Parameters
+        ----------
+        time_frac : float
+            Fraction fo a time step.
+        """
+        if self.verbose:
+            print("Warning: This model is trained to make predictions on one day timesteps.")
+        time_step = self.get_time_step()
+        self._time_step_size = self._time_step_size * time_frac
+        self.update()
+        self._time_step_size = time_step
+    
+    def _process_predictions(self, predictions):
+        """Process model predictions and store them in output variables."""
+        for var_name, prediction in predictions.items():
+            if var_name in self._output_vars:
+                self._output_vars[var_name]['value'] = prediction.cpu().numpy()
+            else:
+                log.warning(f"Output variable '{var_name}' not recognized. Skipping.")
+
+    def _format_inputs(self):
+        """Format dynamic and static inputs for the model."""
+        # NOTE: This needs to create the data dict and include data normalization
+        #=====================================================================#
+        inputs = {}
+        for var_name, var_info in self._dynamic_var.items():
+            inputs[var_name] = var_info['value']
+        for var_name, var_info in self._static_var.items():
+            inputs[var_name] = var_info['value']
+        return inputs
+        #=====================================================================#
+
+    def _batch_data(
+        self,
+        batch_list: list[dict[str, torch.Tensor]],
+        target_key: str = None,
+    ) -> None:
+        """Merge list of batch data dictionaries into a single dictionary."""
+        data = {}
+        try:
+            if target_key:
+                return torch.cat([x[target_key] for x in batch_list], dim=1).numpy()
+
+            for key in batch_list[0].keys():
+                if len(batch_list[0][key].shape) == 3:
+                    dim = 1
+                else:
+                    dim = 0
+                data[key] = torch.cat([d[key] for d in batch_list], dim=dim).cpu().numpy()
+            return data
+        
+        except ValueError as e:
+            raise ValueError(f"Error concatenating batch data: {e}") from e
+        
     def array_to_tensor(self) -> None:
         """
         Converts input values into Torch tensor object to be read by model. 
@@ -662,23 +692,17 @@ class deltaModelBmi(Bmi):
         dest[:] = self.get_value_ptr(var_name).take(indices)
         return dest
 
-    def set_value(self, var_name, values: np.ndarray, model:str):
-        """Set model values.
-
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-        values : array_like
-            Array of new values.
-        """
-        if not isinstance(values, (np.ndarray, list, tuple)):
-            values = np.array([values])
-
-        val = self.get_value_ptr(var_name, model=model)
-
-        # val = values.reshape(val.shape)
-        val[:] = values
+    def set_value(self, var_name, values: np.ndarray):
+        """Set variable value."""
+        for dict in [self._dynamic_var, self._static_var]:
+            if var_name in dict.keys():
+                if self.stepwise:
+                    dict[var_name]['value'] = values
+                else:
+                    dict[var_name]['value'] = np.append(
+                        dict[var_name]['value'], values
+                    )
+                break
 
     def set_value_at_indices(self, name, inds, src):
         """Set model values at particular indices.

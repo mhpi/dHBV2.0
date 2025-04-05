@@ -28,28 +28,26 @@ attr = np.load(attr_path)
 # Create an instance of the dHBV 2.0 through BMI
 model = Bmi(config_path=bmi_config_path)
 
-streamflow_pred = np.zeros(forc.shape[0])
-
-for i in range(0, forc.shape[0]):
-#     # Extract forcing/attribute data for the current time step
-    prcp = forc[i, :, 0]
-    temp = forc[i, :, 1]
-    pet = forc[i, :, 2]
-
-    # Check if any of the inputs are NaN
-    if np.isnan([prcp, temp, pet]).any():
-        # if model.verbose > 0:
-        print(f"Skipping timestep {i} due to NaN values in inputs.")
-        continue
-
-    model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate', prcp)
-    model.set_value('land_surface_air__temperature', temp)
-    model.set_value('land_surface_water__potential_evaporation_volume_flux', pet)
-
-
 ### BMI initialization ###
 model.initialize()
 
+streamflow_pred = np.zeros(forc.shape[0])
+
+# for i in range(0, forc.shape[0]):
+#     # Extract forcing/attribute data for the current time step
+#     prcp = forc[i, :0, 0]
+#     temp = forc[i, :0, 1]
+#     pet = forc[i, :0, 2]
+
+#     # # Check if any of the inputs are NaN
+#     # if np.isnan([prcp, temp, pet]).any():
+#     #     if model.verbose > 0:
+#     #         print(f"Skipping timestep {i} due to NaN values in inputs.")
+#     #     continue
+
+#     model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate', prcp)
+#     model.set_value('land_surface_air__temperature', temp)
+#     model.set_value('land_surface_water__potential_evaporation_volume_flux', pet)
 
 #     ### BMI update ###
 #     model.update()
