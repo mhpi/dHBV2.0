@@ -1,105 +1,83 @@
-## TODO: needs to be updated to latest dHBV 2.0 dMG implementation.
-
 import numpy as np
-from pathlib import Path
-import bmi_dm   # Load module bmi_dm (bmi_dm.py) from dhbv_2_0 package.
-import os, os.path
-lstm_dir = os.path.expanduser('../dhbv_2_0/')
-os.chdir( lstm_dir )
-import pandas as pd
+from dHBV_2_0.src.dHBV_2_0.bmi import DeltaModelBmi as Bmi
 
+
+### Select a basin from the sample data ###
 basin_id = "cat-88306"
+bmi_config_path = f'C:/Users/LeoLo/Desktop/noaa_owp/dHBV_2_0/bmi_config_files/bmi_config_{basin_id}_5yr.yaml'
+### ----------------------------------- ###
 
 
-# Load the USGS data 
+# Load the USGS data
 # REPLACE THIS PATH WITH YOUR LOCAL FILE PATH:
-file_path = f"/Users/jmframe/CAMELS_data_sample/hourly/usgs-streamflow/{basin_id}-usgs-hourly.csv"
-df_runoff = pd.read_csv(file_path)
-df_runoff = df_runoff.set_index("date")
-df_runoff.index = pd.to_datetime(df_runoff.index)
-df_runoff = df_runoff[["QObs(mm/h)"]].rename(columns={"QObs(mm/h)": "usgs_obs"})
-df_runoff["model_pred"] = None
+forc_path = f'C:/Users/LeoLo/Desktop/noaa_owp/dHBV_2_0/data/aorc/juniata_river_basin/forcings_5yr_{basin_id}.npy'
+attr_path = f'C:/Users/LeoLo/Desktop/noaa_owp/dHBV_2_0/data/aorc/juniata_river_basin/attributes_5yr_{basin_id}.npy'
+# obs_path = f'/Users/LeoLo/Desktop/noaa_owp/dHBV_2_0/data/aorc/juniata_river_basin/obs_5yr_{basin_id}.npy'
 
-# REPLACE THIS PATH WITH YOUR LOCAL FILE PATH:
-forcing_file_path = f"/Users/jmframe/CAMELS_data_sample/hourly/aorc_hourly/{basin_id}_1980_to_2024_agg_rounded.csv"
-df_forcing = pd.read_csv(forcing_file_path)
-df_forcing = df_forcing.set_index("time")
-df_forcing.index = pd.to_datetime(df_forcing.index)
-df_forcing = df_forcing[df_runoff.index[0]:df_runoff.index[-1]]
+forc = np.load(forc_path)
+attr = np.load(attr_path)
+# obs = np.load(obs_path)
 
-# Create an instance of the LSTM model with BMI
-model_instance = bmi_lstm.bmi_LSTM()
+# Create an instance of the dHBV 2.0 through BMI
+model = Bmi(config_path=bmi_config_path)
 
-# Initialize the model with a configuration file
-model_instance.initialize(bmi_cfg_file=Path(f'../bmi_config_files/{basin_id}_nh_AORC_hourly_ensemble.yml'))
+streamflow_pred = np.zeros(forc.shape[0])
+nan_idx = []
 
-# Add ensemble columns to the runoff DataFrame
-for i_ens in range(model_instance.N_ENS):
-    df_runoff[f"ensemble_{i_ens+1}"] = None  # Initialize ensemble columns with None
+# 1) Compile forcing data within BMI to do batch run.
+for i in range(0, forc.shape[0]):
+    # Extract forcing/attribute data for the current time step
+    prcp = forc[i, :, 0]
+    temp = forc[i, :, 1]
+    pet = forc[i, :, 2]
 
-
-# Iterate through the forcing DataFrame and calculate model predictions
-print('Working, please wait...')
-for i, (idx, row) in enumerate(df_forcing.iterrows()):
-    # Extract forcing data for the current timestep
-    precip = row["APCP_surface"]
-    temp = row["TMP_2maboveground"]
-    dlwrf = row["DLWRF_surface"]
-    dswrf = row["DSWRF_surface"]
-    pres = row["PRES_surface"]
-    spfh = row["SPFH_2maboveground"]
-    ugrd = row["UGRD_10maboveground"]
-    vgrd = row["VGRD_10maboveground"]
-
-    # Check if any of the inputs are NaN
-    if np.isnan([precip, temp, dlwrf, dswrf, pres, spfh, ugrd, vgrd]).any():
-        if model_instance.verbose > 0:
-            print(f"Skipping timestep {idx} due to NaN values in inputs.")
+    ## Check if any of the inputs are NaN
+    if np.isnan([prcp, temp, pet]).any():
+        # if model.verbose > 0:
+        print(f"Skipping timestep {i} due to NaN values in inputs.")
+        nan_idx.append(i)
         continue
 
-    # Set the model forcings
-    model_instance.set_value('atmosphere_water__liquid_equivalent_precipitation_rate', precip)
-    model_instance.set_value('land_surface_air__temperature', temp)
-    model_instance.set_value('land_surface_radiation~incoming~longwave__energy_flux', dlwrf)
-    model_instance.set_value('land_surface_radiation~incoming~shortwave__energy_flux', dswrf)
-    model_instance.set_value('land_surface_air__pressure', pres)
-    model_instance.set_value('atmosphere_air_water~vapor__relative_saturation', spfh)
-    model_instance.set_value('land_surface_wind__x_component_of_velocity', ugrd)
-    model_instance.set_value('land_surface_wind__y_component_of_velocity', vgrd)
+    model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate', prcp)
+    model.set_value('land_surface_air__temperature', temp)
+    model.set_value('land_surface_water__potential_evaporation_volume_flux', pet)
 
-    # Update the model
-    model_instance.update()
+
+### BMI initialization ###
+model.initialize()
+
+# 2) DO pseudo model forward and return pre-predicted values at each timestep
+for i in range(0, forc.shape[0]):
+    if i in nan_idx:
+        # Skip the update for this timestep
+        continue
+
+    ### BMI update ###
+    model.update()
 
     # Retrieve and scale the runoff output
     dest_array = np.zeros(1)
-    model_instance.get_value('land_surface_water__runoff_depth', dest_array)
-    land_surface_water__runoff_depth = dest_array[0] * 1000  # Convert to mm/hr
+    model.get_value('land_surface_water__runoff_volume_flux', dest_array)
+    
+    streamflow_pred[i] = dest_array[0]  # Convert to mm/day -> mm/hr
 
-    # Add ensemble member values to the DataFrame
-    for i_ens in range(model_instance.N_ENS):
-        df_runoff.loc[idx, f"ensemble_{i_ens+1}"] = model_instance.surface_runoff_mm[i_ens]  # Add individual ensemble member values
+ ### BMI finalization ###
+model.finalize()
+
+print("\n=/= -- Streamflow prediction completed -- =/=")
+print(f"    Basin ID:              {basin_id}")
+print(f"    Total Process Time:    {model.bmi_process_time:.4f} seconds")
+print(f"    Mean streamflow:       {streamflow_pred.mean():.4f} mm/day")
+print(f"    Max streamflow:        {streamflow_pred.max():.4f} mm/day")
+print(f"    Min streamflow:        {streamflow_pred.min():.4f} mm/day")
+print("=/= ------------------------------------ =/=")
 
 
-    # Add the output to the DataFrame
-    df_runoff.loc[idx, "model_pred"] = land_surface_water__runoff_depth
+# # Calculate NSE for the model predictions
+# obs = obs.dropna()
+# sim = streamflow_pred.dropna()
 
-    if i > 10000:
-        break
-
-
-# Ensure "model_pred" is numeric
-df_runoff["model_pred"] = pd.to_numeric(df_runoff["model_pred"], errors="coerce")
-
-# Calculate NSE for the model predictions
-obs = df_runoff["usgs_obs"].dropna()
-sim = df_runoff["model_pred"].dropna()
-
-# Align indices of observation and simulation for metric calculation
-common_index = obs.index.intersection(sim.index)
-obs = obs.loc[common_index].values
-sim = sim.loc[common_index].values
-
-denominator = ((obs - obs.mean()) ** 2).sum()
-numerator = ((sim - obs) ** 2).sum()
-nse = 1 - numerator / denominator
-print(f"NSE: {nse:.2f}")
+# denom = ((obs - obs.mean()) ** 2).sum()
+# num = ((sim - obs) ** 2).sum()
+# nse = 1 - num / denom
+# print(f"NSE: {nse:.2f}")

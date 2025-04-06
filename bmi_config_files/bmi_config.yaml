@@ -1,5 +1,5 @@
 ### Full-catchment configuration ###
-train_cfg_file: ../trained_models/merit_conus_40yr/config.yaml
+train_cfg_file: models/hydrofabric_15yr/config.yaml
 initial_state: zero  # zero: set initial states of the model to zero
 verbose: 1  # 0: no output, 1: print output
 

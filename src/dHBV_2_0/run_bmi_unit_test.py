@@ -6,11 +6,11 @@ TODO: needs to be updated to latest dHBV 2.0 dMG implementation.
 """
 import os
 import sys
-import numpy as np
 from pathlib import Path
 
-from pathlib import Path
-import bmi_dm
+import numpy as np
+
+import dHBV_2_0.src.dHBV_2_0.bmi as bmi
 
 # setup a "success counter" for number of passing and failing bmi functions
 # keep track of function def fails (vs function call)
@@ -46,7 +46,7 @@ else:
     print("No configuration file found, exiting...")
     sys.exit()
 
-bmi=bmi_dm.BmiDm(cfg_file)
+bmi=bmi.BmiDm(cfg_file)
 
 #-------------------------------------------------------------------
 # initialize()
@@ -385,11 +385,11 @@ try:
     bmi.finalize()
     print (" finalizing...")
     pass_count += 1
-except:
+except :
     bmi_except('finalize()')
 
 # lastly - print test summary
 print ("\n Total BMI function PASS: " + str(pass_count))
 print (" Total BMI function FAIL: " + str(fail_count))
 for ff in fail_list:
-    print ("  " + ff)   
+    print ("  " + ff)

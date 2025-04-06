@@ -1,7 +1,7 @@
 (Using from S.D. Peckham)
 
-For use in NextGen, the lstm_py project folder should be copied into
-the NextGen project folder, at ngen/extern/lstm_py.  Please see the
+For use in NextGen, the dHBV_2_0 project folder should be copied into
+the NextGen project folder, at ngen/extern/dhbv_2_0.  Please see the
 text file:  "How_to_Run_LSTM_in_NextGen.txt" in the docs folder for
 much more information.
 

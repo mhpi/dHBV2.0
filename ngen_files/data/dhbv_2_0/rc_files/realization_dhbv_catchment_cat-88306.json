@@ -31,7 +31,7 @@
           "formulations": [
             { "name": "bmi_python",
               "params": {
-                "pytorch_model_path": "./data/dhbv_2_0/dhbv_merit_conus_100ep.pt",
+                "pytorch_model_path": "./data/dhbv_2_0/dhbv_2_0_hf_100ep.pt",
                 "latitude": 40.36467900401266,
                 "longitude": -77.83367525629326,
                 "area_square_km": 3.253501,

@@ -1,4 +1,4 @@
-# $ python3 -m nwm_routing -f -V4 test_AnA_V4_HYFeature.yaml
+# $ python3 -m nwm_routing -f -V4 ../dHBV_2_0/ngen_files/data/dhbv_2_0/rc_files/cat-88306_aorc_daily_routing.yaml
 #--------------------------------------------------------------------------------
 log_parameters:
     #----------
@@ -9,7 +9,7 @@ network_topology_parameters:
     #----------
     supernetwork_parameters:
         #----------
-        geo_file_path: domain/LowerColorado_v22_no_lakes.gpkg
+        geo_file_path: ./extern/dhbv_2_0/ngen_files/data/dhbv_2_0/spatial/cat-88306.gpkg
         columns: 
             key: 'id'
             downstream: 'to'
@@ -36,11 +36,11 @@ compute_parameters:
     parallel_compute_method: by-subnetwork-jit-clustered # serial
     compute_kernel         : V02-structured
     assume_short_ts        : True
-    subnetwork_target_size : 10000
-    cpu_pool               : 36
+    subnetwork_target_size : 1000
+    cpu_pool               : 4
     restart_parameters:
         #----------
-        start_datetime              : 2023-04-01_00:00
+        start_datetime              : 2001-01-01_00:00
         lite_channel_restart_file   : #restart/RESTART.2020082600_DOMAIN1
         lite_waterbody_restart_file : #restart/waterbody_restart_202006011200
     hybrid_parameters:
@@ -55,12 +55,12 @@ compute_parameters:
     forcing_parameters:
         #----------
         qts_subdivisions            : 12
-        dt                          : 300 # [sec]
+        dt                          : 86400  # [sec]
         qlat_input_folder           : channel_forcing 
         qlat_file_pattern_filter    : "*.CHRTOUT_DOMAIN1.csv"
-        coastal_boundary_input_file : #boundary_forcing  
-        nts                         : 576 # 288 for 1day; 2592 for 9 days
-        max_loop_size               : 48   # [hr]  
+        coastal_boundary_input_file : # boundary_forcing  
+        nts                         : 365  # 288 for 1day; 2592 for 9 days
+        max_loop_size               : 8767  # [hr]  
     data_assimilation_parameters:
         #----------
         streamflow_da:
@@ -86,6 +86,6 @@ output_parameters:
 #     lakeout_output: lakeout/
     stream_output : 
         stream_output_directory: output/
-        stream_output_time: -1 #[hr]
-        stream_output_type: '.nc' #please select only between netcdf '.nc' or '.csv' or '.pkl'
-        stream_output_internal_frequency: 60 #[min] it should be order of 5 minutes. For instance if you want to output every hour put 60    
+        stream_output_time: -1  #[hr]
+        stream_output_type: '.nc'  #please select only between netcdf '.nc' or '.csv' or '.pkl'
+        stream_output_internal_frequency: 1440  #[min] it should be order of 5 minutes. For instance if you want to output every hour put 60    
