@@ -1,20 +1,20 @@
 # Need these for BMI
-from bmipy import Bmi
+import os
 import time
+from pathlib import Path
+
+# Here is the LSTM model we want to run
+# import nextgen_cuda_lstm
+import lstm.nextgen_cuda_lstm as nextgen_cuda_lstm  # (SDP)
 # Import data_tools
 # Basic utilities
 import numpy as np
 import pandas as pd
-from pathlib import Path 
-# Configuration file functionality
-import yaml
 # LSTM here is based on PyTorch
 import torch
-
-# Here is the LSTM model we want to run
-# import nextgen_cuda_lstm
-import lstm.nextgen_cuda_lstm as nextgen_cuda_lstm   # (SDP)
-import os
+# Configuration file functionality
+import yaml
+from bmipy import Bmi
 
 # These are not used (SDP)
 ### from torch import nn

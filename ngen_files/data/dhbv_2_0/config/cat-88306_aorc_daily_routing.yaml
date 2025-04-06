@@ -58,9 +58,9 @@ compute_parameters:
         dt                          : 86400  # [sec]
         qlat_input_folder           : channel_forcing 
         qlat_file_pattern_filter    : "*.CHRTOUT_DOMAIN1.csv"
-        coastal_boundary_input_file : #boundary_forcing  
-        nts                         : 365 # 288 for 1day; 2592 for 9 days
-        max_loop_size               : 8767   # [hr]  
+        coastal_boundary_input_file : # boundary_forcing  
+        nts                         : 365  # 288 for 1day; 2592 for 9 days
+        max_loop_size               : 8767  # [hr]  
     data_assimilation_parameters:
         #----------
         streamflow_da:
@@ -86,6 +86,6 @@ output_parameters:
 #     lakeout_output: lakeout/
     stream_output : 
         stream_output_directory: output/
-        stream_output_time: -1 #[hr]
-        stream_output_type: '.nc' #please select only between netcdf '.nc' or '.csv' or '.pkl'
-        stream_output_internal_frequency: 60 #[min] it should be order of 5 minutes. For instance if you want to output every hour put 60    
+        stream_output_time: -1  #[hr]
+        stream_output_type: '.nc'  #please select only between netcdf '.nc' or '.csv' or '.pkl'
+        stream_output_internal_frequency: 1440  #[min] it should be order of 5 minutes. For instance if you want to output every hour put 60    

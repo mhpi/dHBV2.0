@@ -172,3 +172,11 @@ cython_debug/
 
 # Ignore model save files (too large)
 *.pt
+
+# Scratch / development / old / and other temporary files
+*scratch*
+*_dev*
+*_old*
+temp/
+tmp/
+*.tmp

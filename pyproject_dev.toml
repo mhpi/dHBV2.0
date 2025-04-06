@@ -132,6 +132,8 @@ lint.ignore = [
     # Ignore extra line requirements at end of docstring and docstring summary
     "D204",
     "D205",
+    # Missing docstring in public method
+    "D102",
 ]
 
 [tool.ruff.lint.pydocstyle]
