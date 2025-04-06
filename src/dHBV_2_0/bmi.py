@@ -7,6 +7,7 @@ Motivated by LSTM BMI implementation of Austin Raney, Jonathan Frame.
 import logging
 import os
 import time
+import json
 from pathlib import Path
 from typing import Optional, Union
 
@@ -538,6 +539,8 @@ class DeltaModelBmi(Bmi):
         c_nn: NDArray[np.float32]
     ) -> NDArray[np.float32]:
         """Normalize data for neural network."""
+
+        self.load_norm_stats()
         x_nn_norm = self._to_norm(x_nn, _dynamic_input_vars)
         c_nn_norm = self._to_norm(c_nn, _static_input_vars)
 
@@ -567,18 +570,33 @@ class DeltaModelBmi(Bmi):
         data_norm = np.zeros(data.shape)
 
         for k, var in enumerate(vars):
+            stat = self.norm_stats[map_to_internal(var[0])]
+
             if len(data.shape) == 3:
                 if map_to_internal(var[0]) in log_norm_vars:
                     data[:, :, k] = np.log10(np.sqrt(data[:, :, k]) + 0.1)
-                data_norm[:, :, k] = (data[:, :, k] - data[:, :, k].mean()) / (data[:, :, k].std() + 1e-8)
+                data_norm[:, :, k] = (data[:, :, k] - stat[2]) / stat[3]
             elif len(data.shape) == 2:
                 if var[0] in log_norm_vars:
                     data[:, k] = np.log10(np.sqrt(data[:, k]) + 0.1)
-                data_norm[:, k] = (data[:, k] - data[:, k].mean()) / (data[:, k].std() + 1e-8)
+                data_norm[:, k] = (data[:, k] - stat[2]) / stat[3]
             else:
                 raise DataDimensionalityWarning("Data dimension must be 2 or 3.")
         return data_norm
-        
+    
+    def load_norm_stats(self) -> None:
+        """Load normalization statistics."""
+        path = os.path.join(
+            self.config_model['model_path'],
+            '..',
+            'normalization_statistics.json',
+        )
+        try:
+            with open(path) as f:
+                self.norm_stats = json.load(f)
+        except ValueError as e:
+            raise ValueError("Normalization statistics not found.") from e
+
     def _process_predictions(self, predictions):
         """Process model predictions and store them in output variables."""
         for var_name, prediction in predictions.items():
