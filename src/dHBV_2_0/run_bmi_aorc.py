@@ -1,6 +1,5 @@
 import numpy as np
-from dHBV_2_0.src.dHBV_2_0.bmi import DeltaModelBmi as Bmi
-
+from bmi import DeltaModelBmi as Bmi
 
 ### Select a basin from the sample data ###
 basin_id = "cat-88306"

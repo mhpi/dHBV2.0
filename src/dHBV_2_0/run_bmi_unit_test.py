@@ -1,8 +1,6 @@
-"""Run unit testing for differentiable model BMI.
+"""Run unit tests for differentiable model BMI.
 
 Authors: Jessica Garrett, Jonathan Frame | Leo Lonzarich (Adapted)
-
-TODO: needs to be updated to latest dHBV 2.0 dMG implementation.
 """
 import os
 import sys
@@ -10,7 +8,11 @@ from pathlib import Path
 
 import numpy as np
 
-import dHBV_2_0.src.dHBV_2_0.bmi as bmi
+import bmi
+# from . import bmi  # For pytest
+
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
 
 # setup a "success counter" for number of passing and failing bmi functions
 # keep track of function def fails (vs function call)
@@ -38,7 +40,7 @@ def bmi_except(fstring):
 print("\nBEGIN BMI UNIT TEST\n*******************\n");
 
 # Define config path
-cfg_file=Path('./conf/model_config.yaml')
+cfg_file = os.path.join(str(Path(__file__).parent.parent.parent), 'bmi_config_files/bmi_config_cat-88306_5yr.yaml')
 
 if os.path.exists(cfg_file):
     print("Configuration file found: " + str(cfg_file))
@@ -46,7 +48,8 @@ else:
     print("No configuration file found, exiting...")
     sys.exit()
 
-bmi=bmi.BmiDm(cfg_file)
+bmi=bmi.DeltaModelBmi(cfg_file, verbose=True)
+bmi.stepwise = True
 
 #-------------------------------------------------------------------
 # initialize()
@@ -102,8 +105,8 @@ except:
     bmi_except('get_input_var_names()')
 
 #-------------------------------------------------------------------
-# get_input_var_names()
-try:    
+# get_output_var_names()
+try:
     # only print statement if out var list not null
     test_get_output_var_names =  bmi.get_output_var_names()
     if len(test_get_output_var_names) > 0:
@@ -136,7 +139,6 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
     
     #-------------------------------------------------------------------
     # get_var_itemsize()
-    # JG NOTE: 09.16.2021 AttributeError: 'float' object has no attribute 'dtype'
     try:
         print ("  itemsize: " + str(bmi.get_var_itemsize(var_name)))
         if var_name_counter == 0:
@@ -146,11 +148,6 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
 
     #-------------------------------------------------------------------
     # get_var_type()
-    # JG NOTE: 09.16.2021 AttributeError: 'float' object has no attribute 'dtype'
-    
-    # JF NOTE: the print statement needs a string to concatonate
-    # JF NOTE: and the type is a native python command.
-
     try:
         print ("  type: " + str(bmi.get_var_type(var_name)))
         if var_name_counter == 0:
@@ -160,7 +157,6 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
 
     #-------------------------------------------------------------------
     # get_var_nbytes()
-    # JG NOTE: 09.16.2021 AttributeError: 'float' object has no attribute 'nbytes'
     try:
         print ("  nbytes: " + str(bmi.get_var_nbytes(var_name)))
         if var_name_counter == 0:
@@ -265,80 +261,107 @@ except:
     bmi_except('get_grid_size()')
 
 #-------------------------------------------------------------------
-# get_grid_type()    
+# get_grid_type()
 try:
     print ("  type: " + bmi.get_grid_type(grid_id))
     pass_count += 1
 except:
-    bmi_except('get_grid_type()')    
+    bmi_except('get_grid_type()')
 
 
 #-------------------------------------------------------------------
 #-------------------------------------------------------------------
 # BMI: Variable Getter and Setter Functions
 #-------------------------------------------------------------------
-#-------------------------------------------------------------------    
+#-------------------------------------------------------------------
 print ("\nGET AND SET VALUES\n******************")
 
-# TODO: 09.16.2021 this is a band-aid fix for how lstm handles input vars rn
-for var_name in (bmi.get_input_var_names()):     
+for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):     
     print (" " + var_name + ":" )
 
     #-------------------------------------------------------------------
     # set_value()
     try:
-        if var_name =='model_input':
-            print("  set value to: " + str(15))
-            bmi.set_value(var_name,15)
-            print("  _value: ", bmi._values[var_name])
-            print("  get value: ", bmi.get_value(var_name))
-        
+        this_set_value = -99.0
+        bmi.set_value(var_name, np.array([this_set_value]))
+        print ("  set value: " + str(this_set_value))
+
         if var_name_counter == 0: 
             pass_count += 1
     except:
         bmi_except('set_value()')
 
     #-------------------------------------------------------------------
-    # set_value_at_indices()
-    # JG Note: 09.16.2021 this passes but values do not match?
-    #   either definition or way I am calling it here is no go       
-    try:
-        bmi.set_value_at_indices(var_name,[0], -9.0)
-        print ("  set value at indices: -9.0, and got value:", bmi.get_value(var_name))      
-        if var_name_counter == 0: 
-            pass_count += 1
-    except:
-        bmi_except('set_value_at_indices()')
-
-    #-------------------------------------------------------------------
-    # get_value_ptr()
-    try:
-        #print ("  get value ptr: {:.2f}".format(bmi.get_value_ptr(var_name)))
-        print ("  get value ptr: " + str(bmi.get_value_ptr(var_name)))
-        if var_name_counter == 0: 
-            pass_count += 1
-    except:
-        bmi_except('get_value_ptr()')
-
-    #-------------------------------------------------------------------
     # get_value()
     try:
-        #print ("  get value: {:.2f}".format(bmi.get_value(var_name)))
-        print ("  get value: " + str(bmi.get_value(var_name)))
+        dest_array = np.zeros(1)
+        bmi.get_value(var_name, dest_array)
+        that_get_value = dest_array[0]
+        # check if set_value() passed then see if get/set values match
+        if 'set_value()' not in fail_list:
+            if that_get_value == this_set_value:
+                print ("  get value: " + str(that_get_value) + " (values match)")
+            else: 
+                print ("  get value: " + str(that_get_value) + " (values DO NOT match)")
+        else:
+            print ("  get value: " + str(that_get_value))      
         if var_name_counter == 0: 
             pass_count += 1
     except:
         bmi_except('get_value()')
 
     #-------------------------------------------------------------------
-    # get_value_at_indices()    
-    try: 
-        dest0 = np.empty(bmi.get_grid_size(0), dtype=float)
+    # get_value_ptr()
+    try:
+        that_get_value_ptr = bmi.get_value_ptr(var_name)
+        # check if set_value() passed then see if get/set values match
+        if 'set_value()' not in fail_list:
+            if that_get_value_ptr == this_set_value:
+                print ("  get value ptr: " + str(that_get_value) + " (values match)")
+            else: 
+                print ("  get value ptr: " + str(that_get_value) + " (values DO NOT match)")                
+        else:
+            print ("  get value ptr: " + str(that_get_value_ptr))
+        if var_name_counter == 0: 
+            pass_count += 1
+    except:
+        bmi_except('get_value_ptr()')
 
-        # JMFrame NOTE: converting a list/array to a string probably won't work
-        #print ("  get value at indices: " + str(bmi.get_value_at_indices(var_name, dest0, [0])))
+    #-------------------------------------------------------------------
+    # set_value_at_indices()   
+    try:
+        this_set_value_at_indices = -11.0
+        bmi.set_value_at_indices(var_name, np.array([0]), np.array([this_set_value_at_indices]))
+        #print ("  set value at indices: -9.0, and got value:", bmi.get_value(var_name))
+        print ("  set value at indices: " + str(this_set_value_at_indices)) 
+        if var_name_counter == 0: 
+            pass_count += 1
+    except Exception as e:
+        bmi_except('set_value_at_indices()')
         
-        print ("  get value at indices: ", bmi.get_value_at_indices(var_name, dest0, [0]))
+    #-------------------------------------------------------------------
+    # get_value_at_indices()    
+    try:
+        dest_array = np.zeros(1)
+        bmi.get_value_at_indices(var_name, dest_array, np.array([0]))
+        that_get_value_at_indices = dest_array[0]
+        # check if set_value_at_indices() passed then see if get/set values match
+        if 'set_value_at_indices()' not in fail_list:
+            if that_get_value_at_indices == this_set_value_at_indices:
+                print ("  get value at indices: " + str(that_get_value_at_indices) + " (values match)")
+            else: 
+                print ("  get value at indices: " + str(that_get_value_at_indices) + " (values DO NOT match)")                
+        # prob worth while to bounce against set_value() if get_value_at_indices() failed..        
+        elif 'set_value()' not in fail_list:
+            if that_get_value_at_indices == this_set_value:
+                print ("  get value at indices: " + str(that_get_value_at_indices) + " (values match)")
+            else: 
+                print ("  get value at indices: " + str(that_get_value_at_indices) + " (values DO NOT match)")               
+        else:
+            # JMFrame NOTE: converting a list/array to a string probably won't work
+            #print ("  get value at indices: " + str(bmi.get_value_at_indices(var_name, dest0, [0])))
+            
+            print ("  get value at indices: ", that_get_value_at_indices)
         
         if var_name_counter == 0: 
             pass_count += 1
@@ -349,6 +372,7 @@ for var_name in (bmi.get_input_var_names()):
 
 # set back to zero
 var_name_counter = 0
+
 
 #-------------------------------------------------------------------
 #-------------------------------------------------------------------
@@ -363,21 +387,28 @@ try:
     bmi.update()
     # go ahead and print time to show iteration
     # TODO: this will fail if get_current_time() does
-    print (" updating...        time " + str(bmi.get_current_time()))
+    try: 
+        print (" updating...        timestep: " + str(bmi.get_current_time()));
+    except: 
+        print (" updating...");
     pass_count += 1
-except:
+except RuntimeError as e:
+    print(e)
     bmi_except('update()')
 
 #-------------------------------------------------------------------
 # update_until()
 try:
-    bmi.update_until(last_update=36000)
+    bmi.update_until(10 * bmi.get_time_step())
     # go ahead and print time to show iteration
-    # TODO: this will fail if get_current_time() does
-    print (" updating until...  time ", bmi.get_current_time())
+    # wrap another try/except incase get_current_time() failed
+    try: 
+        print (" updating until...  timestep: " + str(bmi.get_current_time()));
+    except: 
+        print (" updating until...");
     pass_count += 1
 except:
-    bmi_except('update_until()')          
+    bmi_except('update_until()')        
 
 #-------------------------------------------------------------------
 # finalize()
