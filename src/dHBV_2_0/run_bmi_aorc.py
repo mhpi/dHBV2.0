@@ -1,25 +1,27 @@
 import numpy as np
-from dHBV_2_0.src.dHBV_2_0.bmi import DeltaModelBmi as Bmi
+from bmi import DeltaModelBmi as Bmi
+import os
+from pathlib import Path
 
 
-### Select a basin from the sample data ###
-basin_id = "cat-88306"
-bmi_config_path = f'C:/Users/LeoLo/Desktop/noaa_owp/dHBV_2_0/bmi_config_files/bmi_config_{basin_id}_5yr.yaml'
-### ----------------------------------- ###
+### Configuration Settings (1-basin run) ###
+BASIN_ID = 'cat-88306'
+BMI_CFG_PATH = f'bmi_config/bmi_config_{BASIN_ID}_5yr.yaml'
+
+FORC_PATH = f'data/aorc/juniata_river_basin/forcings_5yr_{BASIN_ID}.npy'
+ATTR_PATH = f'data/aorc/juniata_river_basin/attributes_5yr_{BASIN_ID}.npy'
+# OBS_PATH = f'../../data/aorc/juniata_river_basin/obs_5yr_{basin_id}.npy'
+### ------------------------------------ ###
 
 
-# Load the USGS data
-# REPLACE THIS PATH WITH YOUR LOCAL FILE PATH:
-forc_path = f'C:/Users/LeoLo/Desktop/noaa_owp/dHBV_2_0/data/aorc/juniata_river_basin/forcings_5yr_{basin_id}.npy'
-attr_path = f'C:/Users/LeoLo/Desktop/noaa_owp/dHBV_2_0/data/aorc/juniata_river_basin/attributes_5yr_{basin_id}.npy'
-# obs_path = f'/Users/LeoLo/Desktop/noaa_owp/dHBV_2_0/data/aorc/juniata_river_basin/obs_5yr_{basin_id}.npy'
+pkg_root = Path(__file__).parent.parent.parent
+forc = np.load(os.path.join(pkg_root, Path(FORC_PATH)))
+attr = np.load(os.path.join(pkg_root, Path(ATTR_PATH)))
+bmi_cfg_path_full = os.path.join(pkg_root, Path(BMI_CFG_PATH))
+# obs = np.load(os.path.join(pkg_root, Path(OBS_PATH)))
 
-forc = np.load(forc_path)
-attr = np.load(attr_path)
-# obs = np.load(obs_path)
-
-# Create an instance of the dHBV 2.0 through BMI
-model = Bmi(config_path=bmi_config_path)
+# Create dHBV 2.0 BMI instance
+model = Bmi(config_path=bmi_cfg_path_full)
 
 streamflow_pred = np.zeros(forc.shape[0])
 nan_idx = []
@@ -65,12 +67,12 @@ for i in range(0, forc.shape[0]):
 model.finalize()
 
 print("\n=/= -- Streamflow prediction completed -- =/=")
-print(f"    Basin ID:              {basin_id}")
+print(f"    Basin ID:              {BASIN_ID}")
 print(f"    Total Process Time:    {model.bmi_process_time:.4f} seconds")
 print(f"    Mean streamflow:       {streamflow_pred.mean():.4f} mm/day")
 print(f"    Max streamflow:        {streamflow_pred.max():.4f} mm/day")
 print(f"    Min streamflow:        {streamflow_pred.min():.4f} mm/day")
-print("=/= ------------------------------------ =/=")
+print("=/= ------------------------------------- =/=")
 
 
 # # Calculate NSE for the model predictions

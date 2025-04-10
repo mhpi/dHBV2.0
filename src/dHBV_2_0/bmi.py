@@ -159,7 +159,7 @@ class DeltaModelBmi(Bmi):
         see dMG package (https://github.com/mhpi/generic_deltaModel).
     """
     _att_map = {
-        'model_name':         'dHVB 2.0UH for NextGen',
+        'model_name':         'dHBV 2.0',
         'version':            '2.0',
         'author_name':        'Leo Lonzarich',
         'time_step_size':     86400,
@@ -184,6 +184,7 @@ class DeltaModelBmi(Bmi):
             Enables debug print statements if True.
         """
         super().__init__()
+        self._name = self._att_map['model_name']
         self._model = None
         self._initialized = False
         self.verbose = verbose
@@ -330,15 +331,14 @@ class DeltaModelBmi(Bmi):
             predictions = self._do_forward()
             self._format_outputs(predictions)  # Process and store predictions.
 
-        # Track total BMI runtime.
+        # Track BMI runtime.
         self.bmi_process_time += time.time() - t_start
         if self.verbose:
-            log.info(f"BMI Initialize took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
+            log.info(f"BMI Initialize took {time.time() - t_start:.4f} s | Total runtime: {self.bmi_process_time:.4f} s")
 
     def update(self) -> None:
         """(Control function) Advance model state by one time step."""
         t_start = time.time()
-        # self.current_time += self._time_step_size
         
         # Forward model on individual timesteps if not initialized with forward_init.
         if self.stepwise:
@@ -348,10 +348,10 @@ class DeltaModelBmi(Bmi):
         # Increment model time.
         self._timestep += 1
 
-        # Track total BMI runtime.
+        # Track BMI runtime.
         self.bmi_process_time += time.time() - t_start
         if self.verbose:
-            log.info(f"BMI Update took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
+            log.info(f"BMI Update took {time.time() - t_start:.4f} s | Total runtime: {self.bmi_process_time:.4f} s")
 
     def update_until(self, end_time: float) -> None:
         """(Control function) Update model until a particular time.
@@ -366,16 +366,30 @@ class DeltaModelBmi(Bmi):
         """
         t_start = time.time()
 
-        n_steps = (end_time - self.get_current_time()) / self.get_time_step()
+        if end_time < self.get_current_time():
+            log.warning(
+                f"No update performed: end_time ({end_time}) <= current time ({self.get_current_time()})."
+            )
+            return None
+
+        n_steps, remainder = divmod(
+            end_time - self.get_current_time(),
+            self.get_time_step(),
+        )
+
+        if remainder != 0:
+            log.warning(
+                f"End time is not multiple of time step size. Updating until: {end_time - remainder}"
+            )
 
         for _ in range(int(n_steps)):
             self.update()
-        self.update_frac(n_steps - int(n_steps))
+        # self.update_frac(n_steps - int(n_steps))  # Fractional step updates.
 
-        # Keep running total of BMI runtime.
+        # Track BMI runtime.
         self.bmi_process_time += time.time() - t_start
         if self.verbose:
-            log.info(f"BMI Update Until took {time.time() - t_start} s | Total runtime: {self.bmi_process_time} s")
+            log.info(f"BMI Update Until took {time.time() - t_start:.4f} s | Total runtime: {self.bmi_process_time:.4f} s")
 
     def finalize(self) -> None:
         """(Control function) Finalize model."""
@@ -401,6 +415,9 @@ class DeltaModelBmi(Bmi):
     def _do_forward(self):
         """Forward model and save outputs to return on update call."""
         data_dict = self._format_inputs()
+        if data_dict == {}:
+            log.error("No data to forward. Check input variables.")
+            return
 
         n_samples = data_dict['xc_nn_norm'].shape[1]
         batch_start = np.arange(0, n_samples, self.config_model['predict']['batch_size'])
@@ -444,29 +461,40 @@ class DeltaModelBmi(Bmi):
             raise FileNotFoundError(f"Model file not found: {model_path}")
         return ModelHandler(config, verbose=True)
     
-    def update_frac(self, time_frac: float) -> None:
-        """
-        Update model by a fraction of a time step.
+    # def update_frac(self, time_frac: float) -> None:
+    #     """
+    #     Update model by a fraction of a time step.
         
-        Parameters
-        ----------
-        time_frac : float
-            Fraction fo a time step.
-        """
-        if self.verbose:
-            print("Warning: This model is trained to make predictions on one day timesteps.")
-        time_step = self.get_time_step()
-        self._time_step_size = self._time_step_size * time_frac
-        self.update()
-        self._time_step_size = time_step
+    #     Parameters
+    #     ----------
+    #     time_frac : float
+    #         Fraction fo a time step.
+    #     """
+    #     if self.verbose:
+    #         print("Warning: This model is trained to make predictions on one day timesteps.")
+    #     time_step = self.get_time_step()
+    #     self._time_step_size = self._time_step_size * time_frac
+    #     self.update()
+    #     self._time_step_size = time_step
 
     def _format_outputs(self, outputs):
         """Format model outputs as BMI outputs."""
-        if not isinstance(outputs['flow_sim'], np.ndarray):
-            outputs = outputs['flow_sim'].detach().cpu().numpy()
-        else:
-            outputs = outputs['flow_sim']
-        self._output_vars[_output_vars[0][0]] = outputs
+        for name in self._output_vars.keys():
+            internal_name = map_to_internal(name)
+            if outputs is None:
+                log.error("No outputs to format. Check model predictions.")
+                output_val = np.zeros(1)
+            elif not isinstance(outputs['flow_sim'], np.ndarray):
+                output_val = outputs[internal_name].detach().cpu().numpy()
+            else:
+                output_val = outputs[internal_name]
+            
+            if self.stepwise:
+                self._output_vars[name]['value'] = np.append(
+                    self._output_vars[name]['value'], output_val
+                )
+            else:
+                self._output_vars[name]['value'] = output_val
 
     def _format_inputs(self):
         """Format dynamic and static inputs for the model."""
@@ -476,7 +504,8 @@ class DeltaModelBmi(Bmi):
 
         for name, data in self._dynamic_var.items():
             if data['value'].size == 0:
-                raise ValueError(f"Dynamic variable '{name}' has no value.")
+                log.info(f"Dynamic variable '{name}' has no value.")
+                return {}
             if data['value'].ndim == 1:
                 data['value'] = np.expand_dims(data['value'], axis=(1, 2))  # Shape: (n, 1, 1)
             elif data['value'].ndim == 2:
@@ -592,7 +621,7 @@ class DeltaModelBmi(Bmi):
             'normalization_statistics.json',
         )
         try:
-            with open(path) as f:
+            with open(os.path.abspath(path)) as f:
                 self.norm_stats = json.load(f)
         except ValueError as e:
             raise ValueError("Normalization statistics not found.") from e
@@ -667,20 +696,7 @@ class DeltaModelBmi(Bmi):
         raise NotImplementedError("get_tensor_slice")
 
     def get_var_type(self, var_name):
-        """
-        Data type of variable.
-
-        Parameters
-        ----------
-        ----------g
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-
-        Returns
-        -------
-        str
-            Data type.
-        """
+        """Data type of variable."""
         return str(self.get_value_ptr(var_name).dtype)
 
     def get_var_units(self, var_standard_name):
@@ -696,83 +712,45 @@ class DeltaModelBmi(Bmi):
         str
             Variable units.
         """
-        return self._var_units_map[var_standard_name]
+        # Combine input/output variable dicts: NOTE: should add to init.
+        return {**self._dynamic_var, **self._output_vars}[var_standard_name]['units']
 
     def get_var_nbytes(self, var_name):
-        """Get units of variable.
-
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-
-        Returns
-        -------
-        int
-            Size of data array in bytes.
-        """
+        """Get units of variable."""
         return self.get_value_ptr(var_name).nbytes
 
     def get_var_itemsize(self, name):
-        return np.dtype(self.get_var_type(name)).itemsize
+        return self.get_value_ptr(name).itemsize
 
     def get_var_location(self, name):
-        return self._var_loc[name]
+        """Location of variable."""
+        if name in {**self._dynamic_var, **self._output_vars}.keys():
+            return self._var_loc
+        else:
+            raise KeyError(f"Variable '{name}' not supported.")
 
     def get_var_grid(self, var_name):
-        """Grid id for a variable.
-
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-
-        Returns
-        -------
-        int
-            Grid id.
-        """
-        # for grid_id, var_name_list in self._grids.items():
-        #     if var_name in var_name_list:
-        #         return grid_id
-        raise NotImplementedError("get_var_grid")
+        """Grid id for a variable."""
+        if var_name in {**self._dynamic_var, **self._output_vars}.keys():
+            return self._var_grid_id
+        else:
+            raise KeyError(f"Variable '{var_name}' not supported.")
 
     def get_grid_rank(self, grid_id: int):
-        """Rank of grid.
-
-        Parameters
-        ----------
-        grid_id
-            Identifier of a grid.
-
-        Returns
-        -------
-        int
-            Rank of grid.
-        """
+        """Rank of grid."""
         if grid_id == 0:
             return 1
-        raise ValueError(f"Unsupported grid rank: {grid_id!s}. only support 0")
+        raise RuntimeError(f"Unsupported grid rank: {grid_id!s}. only support 0")
 
     def get_grid_size(self, grid_id):
-        """Size of grid.
-
-        Parameters
-        ----------
-        grid_id : int
-            Identifier of a grid.
-
-        Returns
-        -------
-        int
-            Size of grid.
-        """
-        # return int(np.prod(self._model.shape))
-        raise NotImplementedError("get_grid_size")
+        """Size of grid."""
+        if grid_id == 0:
+            return 1
+        raise RuntimeError(f"unsupported grid size: {grid_id!s}. only support 0")
 
     def get_value_ptr(self, var_standard_name: str) -> np.ndarray:
         """Reference to values."""
-        return self._output_vars[var_standard_name]
+        return {**self._dynamic_var, **self._static_var, **self._output_vars}[var_standard_name]['value']
 
     def get_value(self, var_name: str, dest: NDArray):
         """Return copy of variable values."""
@@ -784,28 +762,13 @@ class DeltaModelBmi(Bmi):
         return dest
 
     def get_value_at_indices(self, var_name, dest, indices):
-        """Get values at particular indices.
-
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-        dest : ndarray
-            A numpy array into which to place the values.
-        indices : array_like
-            Array of indices.
-
-        Returns
-        -------
-        array_like
-            Values at indices.
-        """
+        """Get values at indices."""
         dest[:] = self.get_value_ptr(var_name).take(indices)
         return dest
 
     def set_value(self, var_name, values: np.ndarray):
         """Set variable value."""
-        for dict in [self._dynamic_var, self._static_var]:
+        for dict in [self._dynamic_var, self._static_var, self._output_vars]:
             if var_name in dict.keys():
                 if self.stepwise:
                     dict[var_name]['value'] = values
@@ -816,19 +779,15 @@ class DeltaModelBmi(Bmi):
                 break
 
     def set_value_at_indices(self, name, inds, src):
-        """Set model values at particular indices.
+        """Set model values at particular indices."""
+        if not isinstance(src, list):
+            src = [src]
 
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-        src : array_like
-            Array of new values.
-        indices : array_like
-            Array of indices.
-        """
-        val = self.get_value_ptr(name)
-        val.flat[inds] = src
+        for dict in [self._dynamic_var, self._static_var, self._output_vars]:
+            if name in dict.keys():
+                for i in inds:
+                    dict[name]['value'][i] = src[i]
+                break
 
     def get_component_name(self):
         """Name of the component."""
@@ -836,19 +795,19 @@ class DeltaModelBmi(Bmi):
 
     def get_input_item_count(self):
         """Get names of input variables."""
-        return len(self._input_var_names)
+        return len(self._dynamic_var)
 
     def get_output_item_count(self):
         """Get names of output variables."""
-        return len(self._output_var_names)
+        return len(self._output_vars)
 
     def get_input_var_names(self):
         """Get names of input variables."""
-        return self._input_var_names
+        return list(self._dynamic_var.keys())
 
     def get_output_var_names(self):
         """Get names of output variables."""
-        return self._output_var_names
+        return list(self._output_vars.keys())
 
     def get_grid_shape(self, grid_id, shape):
         """Number of rows and columns of uniform rectilinear grid."""
@@ -871,8 +830,9 @@ class DeltaModelBmi(Bmi):
 
     def get_grid_type(self, grid_id):
         """Type of grid."""
-        # return self._grid_type[grid_id]
-        raise NotImplementedError("get_grid_type")
+        if grid_id == 0:
+            return "scalar"
+        raise RuntimeError(f"unsupported grid type: {grid_id!s}. only support 0")
 
     def get_start_time(self):
         """Start time of model."""
@@ -883,13 +843,13 @@ class DeltaModelBmi(Bmi):
         return self._end_time
 
     def get_current_time(self):
-        return self._current_time
+        return self._timestep * self._att_map['time_step_size'] + self._start_time
 
     def get_time_step(self):
-        return self._time_step_size
+        return self._att_map['time_step_size']
 
     def get_time_units(self):
-        return self._time_units
+        return self._att_map['time_units']
 
     def get_grid_edge_count(self, grid):
         raise NotImplementedError("get_grid_edge_count")
@@ -935,46 +895,6 @@ class DeltaModelBmi(Bmi):
         else:
             with config_path.open('r') as f:
                 self.config = yaml.safe_load(f)
-    
-
-        # USE BELOW FOR HYDRA + OMEGACONF:
-        # try:
-        #     config_dict: Union[Dict[str, Any], Any] = OmegaConf.to_container(
-        #         cfg, resolve=True
-        #     )
-        #     config = Config(**config_dict)
-        # except ValidationError as e:
-        #     log.exception(e)
-        #     raise e
-        # return config, config_dict
-
-    # def init_var_dicts(self):
-    #     """
-    #     Create lookup tables for CSDMS variables and init variable arrays.
-    #     """
-    #     # Make lookup tables for variable name (Peckham et al.).
-    #     self._var_name_map_long_first = {
-    #         long_name:self._var_name_units_map[long_name][0] for \
-    #         long_name in self._var_name_units_map.keys()
-    #         }
-    #     self._var_name_map_short_first = {
-    #         self._var_name_units_map[long_name][0]:long_name for \
-    #         long_name in self._var_name_units_map.keys()}
-    #     self._var_units_map = {
-    #         long_name:self._var_name_units_map[long_name][1] for \
-    #         long_name in self._var_name_units_map.keys()
-    #     }
-
-    #     # Initialize inputs and outputs.
-    #     for var in self.config['observations']['var_t_nn'] + self.config['observations']['var_c_nn']:
-    #         standard_name = self._var_name_map_short_first[var]
-    #         self._nn_values[standard_name] = []
-    #         # setattr(self, var, 0)
-
-    #     for var in self.config['observations']['var_t_hydro_model'] + self.config['observations']['var_c_hydro_model']:
-    #         standard_name = self._var_name_map_short_first[var]
-    #         self._pm_values[standard_name] = []
-    #         # setattr(self, var, 0)
 
     # def scale_output(self) -> None:
     #     """
@@ -989,76 +909,3 @@ class DeltaModelBmi(Bmi):
     #     # at each basin.
     #     # TODO: setup properly for multiple models later.
     #     self.streamflow_cms = self.preds[models]['flow_sim'].squeeze()
-
-    # def _get_batch_sample(self, config: Dict, dataset_dictionary: Dict[str, torch.Tensor],
-    #                     i_s: int, i_e: int) -> Dict[str, torch.Tensor]:
-    #     """
-    #     Take sample of data for testing batch.
-    #     """
-    #     dataset_sample = {}
-    #     for key, value in dataset_dictionary.items():
-    #         if value.ndim == 3:
-    #             # TODO: I don't think we actually need this.
-    #             # Remove the warmup period for all except airtemp_memory and hydro inputs.
-    #             if key in ['airT_mem_temp_model', 'x_phy', 'inputs_nn_scaled']:
-    #                 warm_up = 0
-    #             else:
-    #                 warm_up = config['warm_up']
-    #             dataset_sample[key] = value[warm_up:, i_s:i_e, :].to(config['device'])
-    #         elif value.ndim == 2:
-    #             dataset_sample[key] = value[i_s:i_e, :].to(config['device'])
-    #         else:
-    #             raise ValueError(f"Incorrect input dimensions. {key} array must have 2 or 3 dimensions.")
-    #     return dataset_sample
-
-    # def _values_to_dict(self) -> None:
-    #     """
-    #     Take CSDMS Standard Name-mapped forcings + attributes and construct data
-    #     dictionary for NN and physics model.
-    #     """
-    #     # n_basins = self.config['batch_basins']
-    #     n_basins = 671
-    #     rho = self.config['rho']
-
-    #     # Initialize dict arrays.
-    #     # NOTE: used to have rho+1 here but this is no longer necessary?
-    #     x_nn = np.zeros((rho + 1, n_basins, len(self.config['observations']['var_t_nn'])))
-    #     c_nn = np.zeros((rho + 1, n_basins, len(self.config['observations']['var_c_nn'])))
-    #     x_phy = np.zeros((rho + 1, n_basins, len(self.config['observations']['var_t_hydro_model'])))
-    #     c_hydro_model = np.zeros((n_basins, len(self.config['observations']['var_c_hydro_model'])))
-
-    #     for i, var in enumerate(self.config['observations']['var_t_nn']):
-    #         standard_name = self._var_name_map_short_first[var]
-    #         # NOTE: Using _values is a bit hacky. Should use get_values I think.
-    #         x_nn[:, :, i] = np.array([self._nn_values[standard_name]])
-        
-    #     for i, var in enumerate(self.config['observations']['var_c_nn']):
-    #         standard_name = self._var_name_map_short_first[var]
-    #         c_nn[:, :, i] = np.array([self._nn_values[standard_name]])
-
-    #     for i, var in enumerate(self.config['observations']['var_t_hydro_model']):
-    #         standard_name = self._var_name_map_short_first[var]
-    #         x_phy[:, :, i] = np.array([self._pm_values[standard_name]])
-
-    #     for i, var in enumerate(self.config['observations']['var_c_hydro_model']):
-    #         standard_name = self._var_name_map_short_first[var]
-    #         c_hydro_model[:, i] = np.array([self._pm_values[standard_name]])
-        
-    #     self.dataset_dict = {
-    #         'inputs_nn_scaled': np.concatenate((x_nn, c_nn), axis=2), #[np.newaxis,:,:],
-    #         'x_phy': x_phy, #[np.newaxis,:,:],
-    #         'c_hydro_model': c_hydro_model
-    #     }
-    #     print(self.dataset_dict['inputs_nn_scaled'].shape)
-
-    #     # Convert to torch tensors:
-    #     for key in self.dataset_dict.keys():
-    #         if type(self.dataset_dict[key]) == np.ndarray:
-    #             self.dataset_dict[key] = torch.from_numpy(self.dataset_dict[key]).float() #.to(self.config['device'])
-
-    # def get_csdms_name(self, var_name):
-    #     """
-    #     Get CSDMS Standard Name from variable name.
-    #     """
-    #     return self._var_name_map_long_first[var_name]
-    

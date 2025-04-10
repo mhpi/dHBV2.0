@@ -128,6 +128,7 @@ dpl_model:
         ]
 
 # NOTE: needed until either config init is ported from dMG, or this is dynamically added by the BMI.
+# Settings from data.yaml
 observations:
     name: merit_forward
     start_time: 1980/01/01

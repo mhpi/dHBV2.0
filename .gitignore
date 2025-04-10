@@ -180,3 +180,4 @@ cython_debug/
 temp/
 tmp/
 *.tmp
+_version.py
