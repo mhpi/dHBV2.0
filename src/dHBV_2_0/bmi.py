@@ -621,7 +621,7 @@ class DeltaModelBmi(Bmi):
             'normalization_statistics.json',
         )
         try:
-            with open(path) as f:
+            with open(os.path.abspath(path)) as f:
                 self.norm_stats = json.load(f)
         except ValueError as e:
             raise ValueError("Normalization statistics not found.") from e
@@ -696,20 +696,7 @@ class DeltaModelBmi(Bmi):
         raise NotImplementedError("get_tensor_slice")
 
     def get_var_type(self, var_name):
-        """
-        Data type of variable.
-
-        Parameters
-        ----------
-        ----------g
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-
-        Returns
-        -------
-        str
-            Data type.
-        """
+        """Data type of variable."""
         return str(self.get_value_ptr(var_name).dtype)
 
     def get_var_units(self, var_standard_name):
@@ -729,18 +716,7 @@ class DeltaModelBmi(Bmi):
         return {**self._dynamic_var, **self._output_vars}[var_standard_name]['units']
 
     def get_var_nbytes(self, var_name):
-        """Get units of variable.
-
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-
-        Returns
-        -------
-        int
-            Size of data array in bytes.
-        """
+        """Get units of variable."""
         return self.get_value_ptr(var_name).nbytes
 
     def get_var_itemsize(self, name):

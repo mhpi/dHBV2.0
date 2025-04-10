@@ -154,5 +154,5 @@
     "end_time": "2005-12-31 00:00:00",
     "output_interval": 86400
   },
-  "output_root": "./data/ngen_output/dandadan/"
+  "output_root": "./output/dandadan/"
 }
