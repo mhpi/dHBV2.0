@@ -9,12 +9,12 @@ This repo is an operations-level package for use with NOAA-OWP’s Next Generati
 
 ## Model Description:
 
-δHBV 2.0UH is a differentiable model, characterized by the use of an LSTM to learn parameters for the differentiable physical model HBV, which is then forwarded with weather forcings (precipitation, temperature, PET) to predict hydraulic states and fluxes like streamflow with high spatial resolution. Routing is then done with UH, which uses parameters learned from a separate MLP neural network. In essence, δHBV 2.0UH is a differentiable modeling modality defined by
+δHBV 2.0UH is a differentiable model, characterized by the use of an LSTM to learn parameters for the differentiable physical model HBV, which can be forwarded with weather forcings (precipitation, temperature, PET) to predict hydrological states and fluxes like streamflow with high spatial resolution. Routing can be done with UH which uses parameters learned from a separate MLP neural network, or with NextGen's internal t-route integration, which uses parameters learned from a separate MLP neural network. In essence, δHBV 2.0UH is a differentiable modeling modality defined by
 
     HBV_params = LSTM( Forcings, Basin Attributes )
     Routing_params = MLP( Forcings, Basin Attributes )
 
-    e.g., Streamflow = HBV2.0( Forcings, HBV_params, Routing_params)
+    Fluxes/States e.g., Streamflow = HBV2.0( Forcings, HBV_params, Routing_params)
 
 Learned parameters are spatially distinct, but can also be time-dependent if desired.
 
@@ -24,9 +24,9 @@ Learned parameters are spatially distinct, but can also be time-dependent if des
 
 ## Model Development and Training:
 
-δHBV 2.0UH is built on the generic differentiable modeling framework [δMG](https://github.com/mhpi/generic_deltaModel), a successor package to [HydroDL](https://github.com/mhpi/hydroDL) serving as a model testbed intended to accelerate deployment in operational environments. Therefore, while this package includes HBV, utility code and neural networks are imported from δMG. Note that training codes for this model will be released in δMG at a later time, but we offer an [example script](https://github.com/mhpi/generic_deltaModel/blob/master/example/hydrology/example_dhbv_2_0.ipynb) demonstrating forward inference on δMG's development backend.
+δHBV 2.0UH is built on the generic differentiable modeling framework [δMG](https://github.com/mhpi/generic_deltaModel), a successor package to [HydroDL](https://github.com/mhpi/hydroDL) serving as a model testbed intended to accelerate deployment in operational environments. Therefore, while this package includes the physical HBV model, utility code and neural networks are imported from δMG. Note that training codes will be released in δMG at a later time, but we offer an [example script](https://github.com/mhpi/generic_deltaModel/blob/master/example/hydrology/example_dhbv_2_0.ipynb) demonstrating forward inference on δMG's development backend.
 
-We also provide model training/validation/inference [examples](https://github.com/mhpi/generic_deltaModel/tree/master/example/hydrology) for predecessor models δHBV 1.0 and δHBV 1.1p, which give more detail on differentiable model construction for parameter learning in practice.
+We also provide model training/validation/inference [examples](https://github.com/mhpi/generic_deltaModel/tree/master/example/hydrology) for precursor models δHBV 1.0 and δHBV 1.1p, which give more detail on differentiable model construction in practice.
 
 <br>
 
