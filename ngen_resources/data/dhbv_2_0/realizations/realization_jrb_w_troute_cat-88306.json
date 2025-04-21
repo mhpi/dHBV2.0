@@ -13,11 +13,12 @@
             {
               "name": "bmi_python",
               "params": {
-                "python_type": "dhbv_2_0.bmi_dm.BmiDm",
-                "model_type_name": "BmiDm",
-                "init_config": "./extern/dhbv_2_0/ngen_files/config/aorc/cat-88306.yml",
+                "python_type": "dhbv_2_0.DeltaModelBmi",
+                "model_type_name": "DeltaModelBmi",
+                "init_config": "./data/dhbv_2_0/config/bmi_cat-88306.yml",
                 "allow_exceed_end_time": true,
                 "main_output_variable": "land_surface_water__runoff_volume_flux",
+                "fixed_time_step": false,
                 "uses_forcing_file": false,
                 "variables_names_map" : {
                   "streamflow_cms": "land_surface_water__runoff_volume_flux"
@@ -29,17 +30,17 @@
       }
     ],
     "forcing": {
-      "path": "./extern/dhbv_2_0/ngen_files/data/forcing/attributes_jrb_5yr_cat-88306.nc",
+      "path": "./data/dhbv_2_0/forcing/attributes_jrb_5yr_cat-88306.nc",
       "provider": "NetCDF"
     }
   },
   "time": {
     "start_time": "2000-01-01 00:00:00",
-    "end_time": "2005-12-31 00:00:00",
+    "end_time": "2005-12-30 23:00:00",
     "output_interval": 86400
   },
-  "output_root": "./data/ngen_output/",
+  "output_root": "./ngen_output/",
   "routing": {
-    "t_route_config_file_with_path": "./dhbv_2_0/ngen_files/data/dhbv_2_0/config/cat-88306_aorc_daily_routing.yaml"
+    "t_route_config_file_with_path": "./data/dhbv_2_0/config/routing_troute_cat-88306.yaml"
   }
 }

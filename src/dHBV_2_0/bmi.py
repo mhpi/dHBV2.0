@@ -1,8 +1,6 @@
 """BMI wrapper for interfacing dHBV 2.0 with NOAA-OWP NextGen framework.
 
 Author: Leo Lonzarich
-
-Motivated by LSTM BMI implementation of Austin Raney, Jonathan Frame.
 """
 import logging
 import os
@@ -314,7 +312,7 @@ class DeltaModelBmi(Bmi):
             else:
                 log.warning(f"Static variable '{name}' not in BMI config. Skipping.")
 
-        # # Set simulation parameters.
+        # Set simulation parameters.
         self.current_time = self.config_bmi.get('start_time', 0.0)
         # self._time_step_size = self.config_bmi.get('time_step_size', 86400)  # Default to 1 day in seconds.
         # self._end_time = self.config_bmi.get('end_time', np.finfo('d').max)\

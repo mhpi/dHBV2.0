@@ -1,4 +1,4 @@
-"""Run unit tests for differentiable model BMI.
+"""Run unit tests for the BMI.
 
 Authors: Jessica Garrett, Jonathan Frame | Leo Lonzarich (Adapted)
 """
