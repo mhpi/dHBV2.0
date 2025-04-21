@@ -5,7 +5,7 @@ from hydroDL2.core.calc import change_param_range
 from hydroDL2.core.calc.uh_routing import UH_conv, UH_gamma
 
 
-class HBVUnitBasin(torch.nn.Module):
+class MultiscaleHBV(torch.nn.Module):
     """
     Multi-component, multi-scale, differentiable PyTorch HBV model with rainfall
     runoff simulation on unit basins.

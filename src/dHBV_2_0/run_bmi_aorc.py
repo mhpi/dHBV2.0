@@ -1,10 +1,14 @@
+"""
+Forward BMI on USGS AORC data for the Juniata River Basin using the NextGen
+hydrofabric.
+"""
 import numpy as np
 from bmi import DeltaModelBmi as Bmi
 import os
 from pathlib import Path
 
 
-### Configuration Settings (1-basin run) ###
+### Configuration Settings (Single-catchment Run) ###
 BASIN_ID = 'cat-88306'
 BMI_CFG_PATH = f'bmi_config/bmi_config_{BASIN_ID}_5yr.yaml'
 

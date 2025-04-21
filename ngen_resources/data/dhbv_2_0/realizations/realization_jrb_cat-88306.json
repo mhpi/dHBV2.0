@@ -1,4 +1,3 @@
-
 {
   "global": {
     "formulations": [
@@ -14,9 +13,9 @@
             {
               "name": "bmi_python",
               "params": {
-                "python_type": "src.dHBV_2_0.bmi.DeltaModelBmi",
+                "python_type": "dhbv_2_0.DeltaModelBmi",
                 "model_type_name": "DeltaModelBmi",
-                "init_config": "./extern/dhbv_2_0/ngen_files/config/aorc/cat-88306.yaml",
+                "init_config": "./data/dhbv_2_0/config/bmi_cat-88306.yml",
                 "allow_exceed_end_time": true,
                 "main_output_variable": "land_surface_water__runoff_volume_flux",
                 "fixed_time_step": false,
@@ -145,14 +144,14 @@
       }
     ],
     "forcing": {
-      "path": "./extern/dhbv_2_0/dhbv_2_0/ngen_files/data/forcing/forcings_jrb_5yr_cat-88306.nc",
+      "path": "./data/dhbv_2_0/forcing/attributes_jrb_5yr_cat-88306.nc",
       "provider": "NetCDF"
     }
   },
   "time": {
     "start_time": "2000-01-01 00:00:00",
-    "end_time": "2005-12-31 00:00:00",
+    "end_time": "2005-12-30 23:00:00",
     "output_interval": 86400
   },
-  "output_root": "./output/dandadan/"
+  "output_root": "./ngen_output/"
 }
