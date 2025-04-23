@@ -48,14 +48,13 @@ The entirety of this package is intended to be placed in NextGen's `extern/` dir
    git clone https://github.com/mhpi/dHBV_2_0.git
    ```
 5. Move `dHBV_2_0` to NextGen's `extern/` directory.
-6. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes [here](NEEDS_LINK). Add this sample data to the `forcings/` directory in NextGen;
-7. Place the realization files in `config/` and begin Nextgen model forwarding with the `run.sh` script.
+6. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes [here](https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/aorc_hydrofabric/ngen_demo.zip). Add this sample data to the `forcings/` directory in NextGen;
+7. Begin Nextgen model forwarding; e.g. `./build/ngen ./data/dhbv_2_0/spatial/catchment_data_cat-88306.geojson 'cat-88306' ./data/dhbv_2_0/spatial/nexus_data_nex-87405.geojson 'nex-87405 ./data/dhbv_2_0/realizations/realization_cat-88306.json`. 
 
 <br>
-
 ## Publication:
 
-*Song, Yalan, Tadd Bindas, Chaopeng Shen, Haoyu Ji, Wouter Johannes Maria Knoben, Leo Lonzarich, Martyn P. Clark et al. "High-resolution national-scale water modeling is enhanced by multiscale differentiable physics-informed machine learning." Authorea Preprints (2024). https://essopenarchive.org/doi/full/10.22541/essoar.172736277.74497104.*
+*Song, Yalan, Tadd Bindas, Chaopeng Shen, Haoyu Ji, Wouter Johannes Maria Knoben, Leo Lonzarich, Martyn P. Clark et al. "High-resolution national-scale water modeling is enhanced by multiscale differentiable physics-informed machine learning." Water Resources Research (2025). https://agupubs.onlinelibrary.wiley.com/doi/pdf/10.1029/2024WR038928.*
 
 <br>
 
