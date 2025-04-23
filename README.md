@@ -45,9 +45,9 @@ The entirety of this package is intended to be placed in NextGen's `extern/` dir
 3. If using NGIAB, compile with docker image.
 4. Clone the `dHBV_2_0` package,
    ```bash
-   git clone https://github.com/mhpi/dHBV_2_0.git
+   git clone https://github.com/mhpi/dHBV2.0.git
    ```
-5. Move `dHBV_2_0` to NextGen's `extern/` directory.
+5. Move `dHBV2.0` to NextGen's `extern/` directory.
 6. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes [here](https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/aorc_hydrofabric/ngen_demo.zip). Add this sample data to the `forcings/` directory in NextGen;
 7. Begin Nextgen model forwarding; e.g. `./build/ngen ./data/dhbv_2_0/spatial/catchment_data_cat-88306.geojson 'cat-88306' ./data/dhbv_2_0/spatial/nexus_data_nex-87405.geojson 'nex-87405 ./data/dhbv_2_0/realizations/realization_cat-88306.json`. 
 
