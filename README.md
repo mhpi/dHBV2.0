@@ -24,9 +24,9 @@ Learned parameters are spatially distinct, but can also be time-dependent if des
 
 ## Model Development and Training:
 
-δHBV 2.0UH is built on the generic differentiable modeling framework [δMG](https://github.com/mhpi/generic_deltaModel), a successor package to [HydroDL](https://github.com/mhpi/hydroDL) serving as a model testbed intended to accelerate deployment in operational environments. Therefore, while this package includes the physical HBV model, utility code and neural networks are imported from δMG. Note that training codes will be released in δMG at a later time, but we offer an [example script](https://github.com/mhpi/generic_deltaModel/blob/master/example/hydrology/example_dhbv_2_0.ipynb) demonstrating forward inference on δMG's development backend.
+δHBV 2.0UH is built on the generic differentiable modeling framework [δMG](https://github.com/mhpi/generic_deltamodel), a successor package to [HydroDL](https://github.com/mhpi/hydroDL) serving as a model testbed intended to accelerate deployment in operational environments. Therefore, while this package includes the physical HBV model, utility code and neural networks are imported from δMG. Note that training codes will be released in δMG at a later time, but we offer an [example script](https://github.com/mhpi/generic_deltamodel/blob/master/example/hydrology/example_dhbv_2_0.ipynb) demonstrating forward inference on δMG's development backend.
 
-We also provide model training/validation/inference [examples](https://github.com/mhpi/generic_deltaModel/tree/master/example/hydrology) for precursor models δHBV 1.0 and δHBV 1.1p, which give more detail on differentiable model construction in practice.
+We also provide model training/validation/inference [examples](https://github.com/mhpi/generic_deltamodel/tree/master/example/hydrology) for precursor models δHBV 1.0 and δHBV 1.1p, which give more detail on differentiable model construction in practice.
 
 <br>
 
@@ -52,11 +52,12 @@ The entirety of this package is intended to be placed in NextGen's `extern/` dir
 7. Begin Nextgen model forwarding; e.g. `./build/ngen ./data/dhbv_2_0/spatial/catchment_data_cat-88306.geojson 'cat-88306' ./data/dhbv_2_0/spatial/nexus_data_nex-87405.geojson 'nex-87405 ./data/dhbv_2_0/realizations/realization_cat-88306.json`. 
 
 <br>
+
 ## Publication:
 
-*Song, Yalan, Tadd Bindas, Chaopeng Shen, Haoyu Ji, Wouter Johannes Maria Knoben, Leo Lonzarich, Martyn P. Clark et al. "High-resolution national-scale water modeling is enhanced by multiscale differentiable physics-informed machine learning." Water Resources Research (2025). https://agupubs.onlinelibrary.wiley.com/doi/pdf/10.1029/2024WR038928.*
+*Yalan Song, Tadd Bindas, Chaopeng Shen, Haoyu Ji, Wouter Johannes Maria Knoben, Leo Lonzarich, Martyn P. Clark, et al. "High-resolution national-scale water modeling is enhanced by multiscale differentiable physics-informed machine learning." Water Resources Research (2025). https://agupubs.onlinelibrary.wiley.com/doi/pdf/10.1029/2024WR038928.*
 
 <br>
 
 ## Issues:
-For questions, concerns, bugs, etc., please reach out by posting an issue here or on the [δMG repo](https://github.com/mhpi/generic_deltaModel/issues).
+For questions, concerns, bugs, etc., please reach out by posting an issue here or on the [dMG repo](https://github.com/mhpi/generic_deltamodel/issues).
