@@ -22,14 +22,13 @@ var_name_counter = 0
 fail_list = []
 
 def bmi_except(fstring):
-    """Prints message and updates counter and list
+    """Prints message and updates counter and list.
 
     Parameters
     ----------
     fstring : str
-        Name of failing BMI function 
+        Name of failing BMI function.
     """
-    
     global fail_count, fail_list, var_name_counter
     print("**BMI ERROR** in " + fstring)
     if (var_name_counter == 0):
@@ -37,7 +36,7 @@ def bmi_except(fstring):
         fail_list.append(fstring)
 
 
-print("\nBEGIN BMI UNIT TEST\n*******************\n");
+print("\nBEGIN BMI UNIT TEST\n*******************\n")
 
 # Define config path
 cfg_file = os.path.join(str(Path(__file__).parent.parent.parent), 'bmi_config_files/bmi_config_cat-88306_5yr.yaml')
@@ -53,11 +52,11 @@ bmi.stepwise = True
 
 #-------------------------------------------------------------------
 # initialize()
-try: 
+try:
     bmi.initialize()
     print(" initializing...")
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('initialize()')
 
 #-------------------------------------------------------------------
@@ -72,7 +71,7 @@ print("\nMODEL INFORMATION\n*****************")
 try:
     print (" component name: " + bmi.get_component_name())
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_component_name()')
 
 #-------------------------------------------------------------------
@@ -80,7 +79,7 @@ except:
 try:
     print (" input item count: " + str(bmi.get_input_item_count()))
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_input_item_count()')
 
 #-------------------------------------------------------------------
@@ -88,12 +87,12 @@ except:
 try:
     print (" output item count: " + str(bmi.get_output_item_count()))
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_output_item_count()')
 
 #-------------------------------------------------------------------
 # get_input_var_names()
-try:    
+try:
     # only print statement if names exist
     test_get_input_var_names = bmi.get_input_var_names()
     if len(test_get_input_var_names) > 0:
@@ -101,7 +100,7 @@ try:
         for var_in in test_get_input_var_names:
             print ("  " + var_in)
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_input_var_names()')
 
 #-------------------------------------------------------------------
@@ -114,7 +113,7 @@ try:
         for var_out in test_get_output_var_names:
             print ("  " + var_out)
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_output_item_count()')
     
 
@@ -125,16 +124,16 @@ except:
 #-------------------------------------------------------------------
 print("\nVARIABLE INFORMATION\n********************")
 
-for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):  
+for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
     print (" " + var_name + ":")
 
     #-------------------------------------------------------------------
     # get_var_units()
-    try: 
+    try:
         print ("  units: " + bmi.get_var_units(var_name))
         if var_name_counter == 0:
             pass_count += 1
-    except:
+    except RuntimeError:
         bmi_except('get_var_units()')
     
     #-------------------------------------------------------------------
@@ -143,7 +142,7 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
         print ("  itemsize: " + str(bmi.get_var_itemsize(var_name)))
         if var_name_counter == 0:
             pass_count += 1
-    except:
+    except RuntimeError:
         bmi_except('get_var_itemsize()')
 
     #-------------------------------------------------------------------
@@ -152,7 +151,7 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
         print ("  type: " + str(bmi.get_var_type(var_name)))
         if var_name_counter == 0:
             pass_count += 1
-    except:
+    except RuntimeError:
         bmi_except('get_var_type()')
 
     #-------------------------------------------------------------------
@@ -161,7 +160,7 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
         print ("  nbytes: " + str(bmi.get_var_nbytes(var_name)))
         if var_name_counter == 0:
             pass_count += 1
-    except:
+    except RuntimeError:
         bmi_except('get_var_nbytes()')
 
     #-------------------------------------------------------------------
@@ -170,7 +169,7 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
         print ("  grid id: " + str(bmi.get_var_grid(var_name)))
         if var_name_counter == 0:
             pass_count += 1
-    except:
+    except RuntimeError:
         bmi_except('get_var_grid()')
 
     #-------------------------------------------------------------------
@@ -179,7 +178,7 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
         print ("  location: " + bmi.get_var_location(var_name))
         if var_name_counter == 0:
             pass_count += 1
-    except:
+    except RuntimeError:
         bmi_except('get_var_location()')
 
     var_name_counter += 1
@@ -199,7 +198,7 @@ print("\nTIME INFORMATION\n****************")
 try:
     print (" start time: " + str(bmi.get_start_time()))
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_start_time()')
 
 #-------------------------------------------------------------------
@@ -207,7 +206,7 @@ except:
 try:
     print (" end time: " + str(bmi.get_end_time()))
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_end_time()')
 
 #-------------------------------------------------------------------
@@ -215,7 +214,7 @@ except:
 try:
     print (" current time: " + str(bmi.get_current_time()))
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_current_time()')
 
 #-------------------------------------------------------------------
@@ -223,7 +222,7 @@ except:
 try:
     print (" time step: " + str(bmi.get_time_step()))
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_time_step()')
 
 #-------------------------------------------------------------------
@@ -231,7 +230,7 @@ except:
 try:
     print (" time units: " + bmi.get_time_units())
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_time_units()')
 
 
@@ -249,15 +248,15 @@ print (" grid id: " + str(grid_id))
 try:
     print ("  rank: " + str(bmi.get_grid_rank(grid_id)))
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_grid_rank()')
 
 #-------------------------------------------------------------------
 # get_grid_size()
-try:    
+try:
     print ("  size: " + str(bmi.get_grid_size(grid_id)))
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_grid_size()')
 
 #-------------------------------------------------------------------
@@ -265,7 +264,7 @@ except:
 try:
     print ("  type: " + bmi.get_grid_type(grid_id))
     pass_count += 1
-except:
+except RuntimeError:
     bmi_except('get_grid_type()')
 
 
@@ -276,7 +275,7 @@ except:
 #-------------------------------------------------------------------
 print ("\nGET AND SET VALUES\n******************")
 
-for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):     
+for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
     print (" " + var_name + ":" )
 
     #-------------------------------------------------------------------
@@ -286,9 +285,9 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
         bmi.set_value(var_name, np.array([this_set_value]))
         print ("  set value: " + str(this_set_value))
 
-        if var_name_counter == 0: 
+        if var_name_counter == 0:
             pass_count += 1
-    except:
+    except RuntimeError:
         bmi_except('set_value()')
 
     #-------------------------------------------------------------------
@@ -301,13 +300,13 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
         if 'set_value()' not in fail_list:
             if that_get_value == this_set_value:
                 print ("  get value: " + str(that_get_value) + " (values match)")
-            else: 
+            else:
                 print ("  get value: " + str(that_get_value) + " (values DO NOT match)")
         else:
-            print ("  get value: " + str(that_get_value))      
-        if var_name_counter == 0: 
+            print ("  get value: " + str(that_get_value))
+        if var_name_counter == 0:
             pass_count += 1
-    except:
+    except RuntimeError:
         bmi_except('get_value()')
 
     #-------------------------------------------------------------------
@@ -318,29 +317,29 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
         if 'set_value()' not in fail_list:
             if that_get_value_ptr == this_set_value:
                 print ("  get value ptr: " + str(that_get_value) + " (values match)")
-            else: 
-                print ("  get value ptr: " + str(that_get_value) + " (values DO NOT match)")                
+            else:
+                print ("  get value ptr: " + str(that_get_value) + " (values DO NOT match)")
         else:
             print ("  get value ptr: " + str(that_get_value_ptr))
-        if var_name_counter == 0: 
+        if var_name_counter == 0:
             pass_count += 1
-    except:
+    except RuntimeError:
         bmi_except('get_value_ptr()')
 
     #-------------------------------------------------------------------
-    # set_value_at_indices()   
+    # set_value_at_indices()
     try:
         this_set_value_at_indices = -11.0
         bmi.set_value_at_indices(var_name, np.array([0]), np.array([this_set_value_at_indices]))
         #print ("  set value at indices: -9.0, and got value:", bmi.get_value(var_name))
-        print ("  set value at indices: " + str(this_set_value_at_indices)) 
-        if var_name_counter == 0: 
+        print ("  set value at indices: " + str(this_set_value_at_indices))
+        if var_name_counter == 0:
             pass_count += 1
-    except Exception as e:
+    except RuntimeError:
         bmi_except('set_value_at_indices()')
         
     #-------------------------------------------------------------------
-    # get_value_at_indices()    
+    # get_value_at_indices()
     try:
         dest_array = np.zeros(1)
         bmi.get_value_at_indices(var_name, dest_array, np.array([0]))
@@ -349,23 +348,23 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
         if 'set_value_at_indices()' not in fail_list:
             if that_get_value_at_indices == this_set_value_at_indices:
                 print ("  get value at indices: " + str(that_get_value_at_indices) + " (values match)")
-            else: 
-                print ("  get value at indices: " + str(that_get_value_at_indices) + " (values DO NOT match)")                
-        # prob worth while to bounce against set_value() if get_value_at_indices() failed..        
+            else:
+                print ("  get value at indices: " + str(that_get_value_at_indices) + " (values DO NOT match)")
+        # prob worth while to bounce against set_value() if get_value_at_indices() failed..
         elif 'set_value()' not in fail_list:
             if that_get_value_at_indices == this_set_value:
                 print ("  get value at indices: " + str(that_get_value_at_indices) + " (values match)")
-            else: 
-                print ("  get value at indices: " + str(that_get_value_at_indices) + " (values DO NOT match)")               
+            else:
+                print ("  get value at indices: " + str(that_get_value_at_indices) + " (values DO NOT match)")
         else:
             # JMFrame NOTE: converting a list/array to a string probably won't work
             #print ("  get value at indices: " + str(bmi.get_value_at_indices(var_name, dest0, [0])))
             
             print ("  get value at indices: ", that_get_value_at_indices)
         
-        if var_name_counter == 0: 
+        if var_name_counter == 0:
             pass_count += 1
-    except: 
+    except RuntimeError:
         bmi_except('get_value_at_indices()')
 
     var_name_counter += 1
@@ -378,8 +377,8 @@ var_name_counter = 0
 #-------------------------------------------------------------------
 # BMI: Control Functions
 #-------------------------------------------------------------------
-#-------------------------------------------------------------------   
-print ("\nCONTROL FUNCTIONS\n*****************")    
+#-------------------------------------------------------------------
+print ("\nCONTROL FUNCTIONS\n*****************")
     
 #-------------------------------------------------------------------
 # update()
@@ -387,10 +386,10 @@ try:
     bmi.update()
     # go ahead and print time to show iteration
     # TODO: this will fail if get_current_time() does
-    try: 
-        print (" updating...        timestep: " + str(bmi.get_current_time()));
-    except: 
-        print (" updating...");
+    try:
+        print (" updating...        timestep: " + str(bmi.get_current_time()))
+    except RuntimeError:
+        print (" updating...")
     pass_count += 1
 except RuntimeError as e:
     print(e)
@@ -402,13 +401,13 @@ try:
     bmi.update_until(10 * bmi.get_time_step())
     # go ahead and print time to show iteration
     # wrap another try/except incase get_current_time() failed
-    try: 
-        print (" updating until...  timestep: " + str(bmi.get_current_time()));
-    except: 
-        print (" updating until...");
+    try:
+        print (" updating until...  timestep: " + str(bmi.get_current_time()))
+    except RuntimeError:
+        print (" updating until...")
     pass_count += 1
-except:
-    bmi_except('update_until()')        
+except RuntimeError:
+    bmi_except('update_until()')
 
 #-------------------------------------------------------------------
 # finalize()
@@ -416,7 +415,7 @@ try:
     bmi.finalize()
     print (" finalizing...")
     pass_count += 1
-except :
+except RuntimeError:
     bmi_except('finalize()')
 
 # lastly - print test summary

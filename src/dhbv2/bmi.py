@@ -151,7 +151,7 @@ def bmi_array(arr: list[float]) -> NDArray:
 class DeltaModelBmi(Bmi):
     """
     dHBV 2.0UH BMI: NextGen-compatible, differentiable, physics-informed ML
-    model for hydrologic forecasting. (Song et al., 2024)
+    model for hydrologic forecasting (Song et al., 2024).
 
     Note: This dHBV 2.0UH BMI can only run forward inference. To train,
         see dMG package (https://github.com/mhpi/generic_deltaModel).
@@ -566,7 +566,6 @@ class DeltaModelBmi(Bmi):
         c_nn: NDArray[np.float32]
     ) -> NDArray[np.float32]:
         """Normalize data for neural network."""
-
         self.load_norm_stats()
         x_nn_norm = self._to_norm(x_nn, _dynamic_input_vars)
         c_nn_norm = self._to_norm(c_nn, _static_input_vars)
@@ -718,6 +717,7 @@ class DeltaModelBmi(Bmi):
         return self.get_value_ptr(var_name).nbytes
 
     def get_var_itemsize(self, name):
+        """Get item size of variable."""
         return self.get_value_ptr(name).itemsize
 
     def get_var_location(self, name):
@@ -841,42 +841,55 @@ class DeltaModelBmi(Bmi):
         return self._end_time
 
     def get_current_time(self):
+        """Current time of model."""
         return self._timestep * self._att_map['time_step_size'] + self._start_time
 
     def get_time_step(self):
+        """Time step size of model."""
         return self._att_map['time_step_size']
 
     def get_time_units(self):
+        """Time units of model."""
         return self._att_map['time_units']
 
     def get_grid_edge_count(self, grid):
+        """Get grid edge count."""
         raise NotImplementedError("get_grid_edge_count")
 
     def get_grid_edge_nodes(self, grid, edge_nodes):
+        """Get grid edge nodes."""
         raise NotImplementedError("get_grid_edge_nodes")
 
     def get_grid_face_count(self, grid):
+        """Get grid face count."""
         raise NotImplementedError("get_grid_face_count")
 
     def get_grid_face_nodes(self, grid, face_nodes):
+        """Get grid face nodes."""
         raise NotImplementedError("get_grid_face_nodes")
 
     def get_grid_node_count(self, grid):
+        """Get grid node count."""
         raise NotImplementedError("get_grid_node_count")
 
     def get_grid_nodes_per_face(self, grid, nodes_per_face):
+        """Get grid nodes per face."""
         raise NotImplementedError("get_grid_nodes_per_face")
 
     def get_grid_face_edges(self, grid, face_edges):
+        """Get grid face edges."""
         raise NotImplementedError("get_grid_face_edges")
 
     def get_grid_x(self, grid, x):
+        """Get grid x-coordinates."""
         raise NotImplementedError("get_grid_x")
 
     def get_grid_y(self, grid, y):
+        """Get grid y-coordinates."""
         raise NotImplementedError("get_grid_y")
 
     def get_grid_z(self, grid, z):
+        """Get grid z-coordinates."""
         raise NotImplementedError("get_grid_z")
 
     def initialize_config(self, config_path: str) -> dict:
