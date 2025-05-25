@@ -1,9 +1,9 @@
-name: bmi_dm
+name: dm_bmi
 channels:
-  - pytorch
-  - defaults
-  - anaconda
   - conda-forge
+  - defaults
+  - pytorch
+  - nvidia
 dependencies:
   - bmipy
   - cpuonly
