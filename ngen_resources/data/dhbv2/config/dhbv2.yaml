@@ -12,7 +12,7 @@ data_sampler: MsHydroSampler
 trainer: MsTrainer
 
 save_path: .
-trained_model: ./data/dhbv_2_0/models/hydrofabric_15yr/dHBV_2_0_Ep100.pt
+trained_model: ./data/dhbv2/models/hydrofabric_15yr/dHBV2_Ep100.pt
 # The trained dHBV 2.0 model (+ input data) can be downloaded from: https://pennstateoffice365-my.sharepoint.com/:f:/g/personal/cxs1024_psu_edu/Eqi1NuJ3d2pMpEJpVu0EGSoBigi-VCWVHgOYIRoTeuGiOw?e=HaNNeA
 
 

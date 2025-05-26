@@ -1,4 +1,4 @@
-# $ python3 -m nwm_routing -f -V4 ../dHBV_2_0/ngen_files/data/dhbv_2_0/rc_files/cat-88306_aorc_daily_routing.yaml
+# $ python3 -m nwm_routing -f -V4 ../dhbv2/ngen_files/data/dhbv/rc_files/cat-88306_aorc_daily_routing.yaml
 #--------------------------------------------------------------------------------
 log_parameters:
     #----------
@@ -9,7 +9,7 @@ network_topology_parameters:
     #----------
     supernetwork_parameters:
         #----------
-        geo_file_path: ./extern/dhbv_2_0/ngen_files/data/dhbv_2_0/spatial/cat-88306.gpkg
+        geo_file_path: ./extern/dhbv2/ngen_files/data/dhbv2/spatial/cat-88306.gpkg
         columns: 
             key: 'id'
             downstream: 'to'

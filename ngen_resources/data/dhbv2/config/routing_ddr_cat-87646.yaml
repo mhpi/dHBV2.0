@@ -10,7 +10,7 @@ network_topology_parameters:
     #----------
     supernetwork_parameters:
         #----------
-        geo_file_path: ./data/dhbv_2_0/spatial/jrb_hydrofabric_v2.2.gpkg
+        geo_file_path: ./data/dhbv2/spatial/jrb_hydrofabric_v2.2.gpkg
         columns: 
             key: 'divide_id'
             downstream: 'to'
