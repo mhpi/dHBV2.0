@@ -12,9 +12,9 @@ This repo is an operations-level module for use with NOAA-OWP’s Next Generatio
 
 $$
     \theta_{d, m}^{1:t} = LSTM( x_m^{1:t}, A_m )
+$$
 
-    \\
-
+$$
     \theta_{s, m} = MLP( A_m )
 $$
 
@@ -22,7 +22,7 @@ $$
     Q_k^{1:t}, S_k^{1:t} = HBV(x_m^{1:t}, \theta_{d, m}^{1:t}, \theta_{s, m})
 $$
 
-where $\theta_{d, m}^{1:t}$ and $\theta_{d, m}^{1:t}$ are learned dynamic and static HBV parameters, $x_m^{1:t}$ are unit-basin-scale forcings, $A_m$ are unit basin attributes, respectively, or $m \in \{ 1, 2, \ldots, n\}$, $Q_b^{1:t}$ are HBV fluxes (e.g., streamflow), and $S_b^{1:t}$ are HBV states (e.g., snowpack) for unit basins $m\in\{1, 2, \ldots, M\}$ and coarse gage basins $k\in \{1, 2, \ldots, K\}$. All model parameters are spatially distinct, but can be learned with time-dependency if desired.
+where $\theta_{d, m}^{1:t}$ and $\theta_{d, m}^{1:t}$ are learned dynamic and static HBV parameters, $x_m^{1:t}$ are unit-basin-scale forcings, $A_m$ are unit basin attributes, respectively, $Q_b^{1:t}$ are HBV fluxes (e.g., streamflow), and $S_b^{1:t}$ are HBV states (e.g., snowpack) for unit basins $m\in [1, 2, \ldots, M]$ and coarse gage basins $k\in [1, 2, \ldots, K]$. All model parameters are spatially distinct, but can be learned with time-dependency if desired.
 
 *Note that HBV here differs from the original NumPy version proposed by Beck et al. (2020), with modifications for multiscale training and PyTorch compatibility.*
 
