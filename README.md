@@ -60,7 +60,8 @@ The entirety of this module is intended to be placed in NextGen's `extern/` dire
 
 4. Move `dHBV2.0` to NextGen's `extern/` directory.
 5. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes from [AWS](https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/aorc_hydrofabric/ngen_demo.zip). Add this sample data to the `forcings/` directory in NextGen;
-6. Start Nextgen model forward; e.g. `./build/ngen ./data/dhbv2/spatial/catchment_data_cat-88306.geojson 'cat-88306' ./data/dhbv2/spatial/nexus_data_nex-87405.geojson 'nex-87405 ./data/dhbv2/realizations/realization_cat-88306.json`.
+6. Download δHBV2.0 model weights from [AWS](https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/models/dHBV_2_0_trained.zip) and extract `dHBV_2_0_Ep100.pt` to `ngen_resources/data/dhbv_2_0/models/hydrofabric_15yr/`.
+7. Start Nextgen model forward; e.g. `./build/ngen ./data/dhbv2/spatial/catchment_data_cat-88306.geojson 'cat-88306' ./data/dhbv2/spatial/nexus_data_nex-87405.geojson 'nex-87405 ./data/dhbv2/realizations/realization_cat-88306.json`.
 
 </br>
 
