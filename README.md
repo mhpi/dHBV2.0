@@ -1,4 +1,4 @@
-# δHBV2.0
+# δHBV 2.0
 
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.7.0-EE4C2C?logo=pytorch)](https://pytorch.org/)
