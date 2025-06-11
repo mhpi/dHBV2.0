@@ -2,10 +2,10 @@
 
 Author: Leo Lonzarich
 """
+import json
 import logging
 import os
 import time
-import json
 from pathlib import Path
 from typing import Optional, Union
 
@@ -212,7 +212,7 @@ class DeltaModelBmi(Bmi):
             
             try:
                 model_config_path = os.path.join(
-                    script_dir, '..', '..', self.config_bmi.get('config_model')
+                    script_dir, '..', '..', self.config_bmi.get('config_model'),
                 )
                 with open(model_config_path) as f:
                     self.config_model = yaml.safe_load(f)
@@ -288,7 +288,7 @@ class DeltaModelBmi(Bmi):
         if self.config_model is None:
             try:
                 model_config_path = os.path.join(
-                    script_dir, '..', '..', self.config_bmi.get('config_model')
+                    script_dir, '..', '..', self.config_bmi.get('config_model'),
                 )
                 with open(model_config_path) as f:
                     self.config_model = yaml.safe_load(f)
@@ -297,7 +297,7 @@ class DeltaModelBmi(Bmi):
         
         self.config_model = utils.initialize_config(self.config_model)
         self.config_model['model_path'] = os.path.join(
-            script_dir, '..', '..', self.config_model.get('trained_model')
+            script_dir, '..', '..', self.config_model.get('trained_model'),
         )
         self.device = self.config_model['device']
         self.internal_dtype = self.config_model['dtype']
@@ -366,7 +366,7 @@ class DeltaModelBmi(Bmi):
 
         if end_time < self.get_current_time():
             log.warning(
-                f"No update performed: end_time ({end_time}) <= current time ({self.get_current_time()})."
+                f"No update performed: end_time ({end_time}) <= current time ({self.get_current_time()}).",
             )
             return None
 
@@ -377,7 +377,7 @@ class DeltaModelBmi(Bmi):
 
         if remainder != 0:
             log.warning(
-                f"End time is not multiple of time step size. Updating until: {end_time - remainder}"
+                f"End time is not multiple of time step size. Updating until: {end_time - remainder}",
             )
 
         for _ in range(int(n_steps)):
@@ -489,7 +489,7 @@ class DeltaModelBmi(Bmi):
             
             if self.stepwise:
                 self._output_vars[name]['value'] = np.append(
-                    self._output_vars[name]['value'], output_val
+                    self._output_vars[name]['value'], output_val,
                 )
             else:
                 self._output_vars[name]['value'] = output_val
@@ -563,7 +563,7 @@ class DeltaModelBmi(Bmi):
     def normalize(
         self,
         x_nn: NDArray[np.float32],
-        c_nn: NDArray[np.float32]
+        c_nn: NDArray[np.float32],
     ) -> NDArray[np.float32]:
         """Normalize data for neural network."""
         self.load_norm_stats()
@@ -772,7 +772,7 @@ class DeltaModelBmi(Bmi):
                     dict[var_name]['value'] = values
                 else:
                     dict[var_name]['value'] = np.append(
-                        dict[var_name]['value'], values
+                        dict[var_name]['value'], values,
                     )
                 break
 

@@ -35,7 +35,7 @@ class MultiscaleHBV(torch.nn.Module):
     def __init__(
             self,
             config: Optional[dict[str, Any]] = None,
-            device: Optional[torch.device] = None
+            device: Optional[torch.device] = None,
         ) -> None:
         super().__init__()
         self.name = 'HBV 2.0UH'
@@ -182,7 +182,7 @@ class MultiscaleHBV(torch.nn.Module):
             comPar = dynPar * (1 - drmask) + staPar * drmask
             param_dict[name] = change_param_range(
                 param=comPar,
-                bounds=self.parameter_bounds[name]
+                bounds=self.parameter_bounds[name],
             )
         return param_dict
 
@@ -209,13 +209,13 @@ class MultiscaleHBV(torch.nn.Module):
 
             parameter_dict[name] = change_param_range(
                 param=param,
-                bounds=self.parameter_bounds[name]
+                bounds=self.parameter_bounds[name],
             )
         return parameter_dict
 
     def descale_rout_parameters(
             self,
-            routing_params: torch.Tensor
+            routing_params: torch.Tensor,
         ) -> torch.Tensor:
         """Descale routing parameters.
         
@@ -235,14 +235,14 @@ class MultiscaleHBV(torch.nn.Module):
 
             parameter_dict[name] = change_param_range(
                 param=param,
-                bounds=self.routing_parameter_bounds[name]
+                bounds=self.routing_parameter_bounds[name],
             )
         return parameter_dict
 
     def forward(
             self,
             x_dict: dict[str, torch.Tensor],
-            parameters: torch.Tensor
+            parameters: torch.Tensor,
         ) -> Union[tuple, dict[str, torch.Tensor]]:
         """Forward pass for HBV1.1p.
         
@@ -292,12 +292,12 @@ class MultiscaleHBV(torch.nn.Module):
 
         phy_dy_params_dict = self.descale_phy_dy_parameters(
             phy_dy_params,
-            dy_list=self.dynamic_params
+            dy_list=self.dynamic_params,
         )
 
         phy_static_params_dict = self.descale_phy_stat_parameters(
             phy_static_params,
-            stat_list=[param for param in self.phy_param_names if param not in self.dynamic_params]
+            stat_list=[param for param in self.phy_param_names if param not in self.dynamic_params],
         )
 
         # Run the model for the remainder of simulation period.
@@ -307,7 +307,7 @@ class MultiscaleHBV(torch.nn.Module):
                     Elevation,
                     [SNOWPACK, MELTWATER, SM, SUZ, SLZ],
                     phy_dy_params_dict,
-                    phy_static_params_dict
+                    phy_static_params_dict,
                 )
 
     def PBM(
@@ -317,7 +317,7 @@ class MultiscaleHBV(torch.nn.Module):
             Elevation: torch.Tensor,
             states: tuple,
             phy_dy_params_dict: dict,
-            phy_static_params_dict: dict
+            phy_static_params_dict: dict,
         ) -> Union[tuple, dict[str, torch.Tensor]]:
         """Run the HBV1.1p model forward.
         
@@ -478,7 +478,7 @@ class MultiscaleHBV(torch.nn.Module):
             UH = UH_gamma(
                 self.routing_param_dict['rout_a'].repeat(n_steps, 1).unsqueeze(-1),
                 self.routing_param_dict['rout_b'].repeat(n_steps, 1).unsqueeze(-1),
-                lenF=15
+                lenF=15,
             )
             rf = torch.unsqueeze(Qsim, -1).permute([1, 2, 0])  # [gages,vars,time]
             UH = UH.permute([1, 2, 0])  # [gages,vars,time]
