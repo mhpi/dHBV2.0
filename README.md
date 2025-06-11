@@ -1,5 +1,13 @@
 # δHBV 2.0
 
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](https://www.python.org/downloads/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.7.0-EE4C2C?logo=pytorch)](https://pytorch.org/)
+
+[![Build](https://github.com/mhpi/hydrodl2/actions/workflows/pytest.yaml/badge.svg?branch=master)](https://github.com/mhpi/hydrodl2/actions/workflows/pytest.yaml/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+---
+
 First introduced in the preprint “High-resolution national-scale water modeling is enhanced by multiscale differentiable physics-informed machine learning” by Song et al. (2024), δHBV 2.0 is the latest-generation differentiable HBV model leveraging intelligent parameterization, big data, and highly-parallelized GPU compute with PyTorch to deliver CONUS-scale, high-resolution inference of HBV parameters and fluxes. (See publication [below](#publication) for details.)
 
 This repo is an operations-level package for use with NOAA-OWP’s Next Generation National Water Modeling Framework ([NextGen](https://github.com/NOAA-OWP/ngen)) and currently supports δHBV 2.0 with unit hydrograph (UH) routing.
@@ -23,7 +31,7 @@ Learned parameters are spatially distinct, but can also be time-dependent if des
 
 ## Model Development and Training
 
-δHBV 2.0UH is built on the generic differentiable modeling framework [δMG](https://github.com/mhpi/generic_deltamodel), a successor package to [HydroDL](https://github.com/mhpi/hydroDL) serving as a model testbed intended to accelerate deployment in operational environments. Therefore, while this package includes the physical HBV model, utility code and neural networks are imported from δMG. Note that training codes will be released in δMG at a later time, but we offer an [example script](https://github.com/mhpi/generic_deltamodel/blob/master/example/hydrology/example_dhbv_2_0.ipynb) demonstrating forward inference on δMG's development backend.
+δHBV 2.0UH is built on the generic differentiable modeling framework [δMG](https://github.com/mhpi/generic_deltamodel), a successor package to [HydroDL](https://github.com/mhpi/hydroDL) serving as a model testbed intended to accelerate deployment in operational environments. Therefore, while this package includes the physical HBV model, utility code and neural networks are imported from δMG. Note that training codes will be released in δMG at a later time, but we offer an [example script](https://github.com/mhpi/generic_deltamodel/blob/master/example/hydrology/example_dhbv_2.ipynb) demonstrating forward inference on δMG's development backend.
 
 We also provide model training/validation/inference [examples](https://github.com/mhpi/generic_deltamodel/tree/master/example/hydrology) for precursor models δHBV 1.0 and δHBV 1.1p, which give more detail on differentiable model construction in practice.
 
@@ -45,15 +53,15 @@ The entirety of this package is intended to be placed in NextGen's `extern/` dir
 
 1. Install [NextGen in a Box](https://github.com/CIROH-UA/NGIAB-CloudInfra) (NGIAB) or the NextGen [prototype](https://github.com/NOAA-OWP/ngen) from NOAA-OWP;
 2. If using NGIAB, compile with docker image.
-3. Clone the `dHBV_2_0` package,
+3. Clone the `dhbv2` package,
 
         ```bash
-        git clone https://github.com/mhpi/dHBV2.0.git
+        git clone https://github.com/mhpi/dhbv2.git
         ```
 
-4. Move `dHBV2.0` to NextGen's `extern/` directory.
-5. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes [here](https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/aorc_hydrofabric/ngen_demo.zip). Add this sample data to the `forcings/` directory in NextGen;
-6. Begin Nextgen model forwarding; e.g. `./build/ngen ./data/dhbv_2_0/spatial/catchment_data_cat-88306.geojson 'cat-88306' ./data/dhbv_2_0/spatial/nexus_data_nex-87405.geojson 'nex-87405 ./data/dhbv_2_0/realizations/realization_cat-88306.json`.
+4. Move `dhbv2` to NextGen's `extern/` directory.
+5. Download a demo subset of AORC forcings and Hydrofabric 2.2 basin attributes from [AWS](https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/aorc_hydrofabric/ngen_demo.zip). Add this sample data to the `forcings/` directory in NextGen;
+6. Begin Nextgen model forwarding; e.g. `./build/ngen ./data/dhbv_2/spatial/catchment_data_cat-88306.geojson 'cat-88306' ./data/dhbv_2/spatial/nexus_data_nex-87405.geojson 'nex-87405 ./data/dhbv_2/realizations/realization_cat-88306.json`.
 
 </br>
 
